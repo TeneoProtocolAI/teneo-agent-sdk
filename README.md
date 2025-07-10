@@ -252,7 +252,7 @@ if err := enhancedAgent.Run(); err != nil {
 │                   Enhanced Agent Runner                     │
 │              (coordinates all components)                   │
 ├─────────────────────────────────────────────────────────────┤
-│  Task Coordinator  │  Protocol Handler  │  Health Monitor  │
+│  Task Coordinator  │  Protocol Handler  │  Health Monitor   │
 ├─────────────────────────────────────────────────────────────┤
 │                   Network Client                            │
 │              (WebSocket communication)                      │
