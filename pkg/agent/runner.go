@@ -10,10 +10,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/teneo/agent-sdk-go/pkg/auth"
-	"github.com/teneo/agent-sdk-go/pkg/health"
-	"github.com/teneo/agent-sdk-go/pkg/network"
-	"github.com/teneo/agent-sdk-go/pkg/types"
+	"github.com/Teneo-Protocol/teneo-agent-sdk/pkg/auth"
+	"github.com/Teneo-Protocol/teneo-agent-sdk/pkg/health"
+	"github.com/Teneo-Protocol/teneo-agent-sdk/pkg/network"
+	"github.com/Teneo-Protocol/teneo-agent-sdk/pkg/types"
 )
 
 // EnhancedAgent represents a fully functional Teneo network agent with all capabilities

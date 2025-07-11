@@ -1,4 +1,4 @@
-module github.com/teneo/agent-sdk-go
+module github.com/Teneo-Protocol/teneo-agent-sdk
 
 go 1.21
 

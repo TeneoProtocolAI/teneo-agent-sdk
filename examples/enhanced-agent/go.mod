@@ -4,10 +4,10 @@ go 1.21
 
 require (
 	github.com/joho/godotenv v1.5.1
-	github.com/teneo/agent-sdk-go v0.0.0-00010101000000-000000000000
+	github.com/Teneo-Protocol/teneo-agent-sdk v0.0.0-00010101000000-000000000000
 )
 
-replace github.com/teneo/agent-sdk-go => ../../
+replace github.com/Teneo-Protocol/teneo-agent-sdk => ../../
 
 require (
 	github.com/Microsoft/go-winio v0.6.1 // indirect

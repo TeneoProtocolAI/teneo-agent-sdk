@@ -34,7 +34,7 @@ The Teneo Agent SDK now provides **production-ready network functionality** with
 
 ```bash
 go mod init my-teneo-agent
-go get github.com/teneo/agent-sdk-go
+go get github.com/Teneo-Protocol/teneo-agent-sdk
 ```
 
 ### 2. Create Your Agent
@@ -49,7 +49,7 @@ import (
     "os"
     
     "github.com/joho/godotenv"
-    "github.com/teneo/agent-sdk-go/pkg/agent"
+    "github.com/Teneo-Protocol/teneo-agent-sdk/pkg/agent"
 )
 
 // MyAgent implements the required AgentHandler interface
@@ -129,7 +129,7 @@ Your agent will:
 ### Install SDK
 
 ```bash
-go get github.com/teneo/agent-sdk-go
+go get github.com/Teneo-Protocol/teneo-agent-sdk
 ```
 
 ### Required Dependencies
@@ -538,7 +538,7 @@ import (
     "log"
     "os"
     
-    "github.com/teneo/agent-sdk-go/pkg/agent"
+    "github.com/Teneo-Protocol/teneo-agent-sdk/pkg/agent"
 )
 
 type SimpleAgent struct{}
@@ -820,7 +820,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - 📖 [Documentation](https://docs.teneo.pro)
 - 💬 [Discord Community](https://discord.gg/teneo)
-- 🐛 [Issue Tracker](https://github.com/teneo/agent-sdk-go/issues)
+- 🐛 [Issue Tracker](https://github.com/Teneo-Protocol/teneo-agent-sdk/issues)
 - 📧 [Email Support](mailto:support@teneo.pro)
 
 ---
