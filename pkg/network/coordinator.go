@@ -157,7 +157,7 @@ func (t *TaskCoordinator) HandleIncomingTask(msg *types.Message) error {
 		log.Printf("⚠️ Rate limit exceeded, rejecting task %s", taskID)
 		t.protocolHandler.SendTaskResponseToRoom(
 			taskID,
-			"⚠️ Rate limit exceeded. Please try again later.",
+			"⚠️ Agent rate limit exceeded. This agent has reached its maximum request capacity. Please try again in a moment.",
 			types.StandardMessageTypeString,
 			false,
 			"rate_limit_exceeded",
@@ -189,7 +189,7 @@ func (t *TaskCoordinator) HandleUserMessage(msg *types.Message) error {
 		log.Printf("⚠️ Rate limit exceeded, rejecting message from %s", msg.From)
 		t.protocolHandler.SendTaskResponseToRoom(
 			taskID,
-			"⚠️ Rate limit exceeded. Please try again later.",
+			"⚠️ Agent rate limit exceeded. This agent has reached its maximum request capacity. Please try again in a moment.",
 			types.StandardMessageTypeString,
 			false,
 			"rate_limit_exceeded",

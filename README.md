@@ -381,7 +381,7 @@ config.RateLimitPerMinute = 60 // Limit to 60 tasks per minute
 ### Behavior
 
 When the rate limit is exceeded:
-- Users receive: "⚠️ Rate limit exceeded. Please try again later."
+- Users receive: "⚠️ Agent rate limit exceeded. This agent has reached its maximum request capacity. Please try again in a moment."
 - Error code: `rate_limit_exceeded`
 - The task is automatically rejected without processing
 
