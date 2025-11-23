@@ -13,6 +13,7 @@ import (
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/auth"
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/nft"
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/types"
+	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/ws"
 )
 
 // Agent represents a Teneo agent instance
@@ -21,6 +22,7 @@ type Agent struct {
 	handler     types.AgentHandler
 	nftManager  *nft.BusinessCardManager
 	authManager *auth.Manager
+	wsClient    *ws.Client // NEW: WebSocket client for push messages
 	ctx         context.Context
 	cancel      context.CancelFunc
 	wg          sync.WaitGroup
@@ -37,10 +39,11 @@ func NewAgent(config *Config, handler types.AgentHandler) (*Agent, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	agent := &Agent{
-		config:  config,
-		handler: handler,
-		ctx:     ctx,
-		cancel:  cancel,
+		config:   config,
+		handler:  handler,
+		ctx:      ctx,
+		cancel:   cancel,
+		wsClient: nil, // Initialize as nil, connect via Initialize()
 	}
 
 	// Initialize NFT manager if contract address is provided
@@ -289,6 +292,11 @@ func (a *Agent) Shutdown() {
 // Close releases resources used by the agent
 func (a *Agent) Close() error {
 	a.Shutdown()
+
+	// Close WebSocket connection
+	if err := a.CloseWebSocket(); err != nil {
+		log.Printf("⚠️  Error closing websocket: %v", err)
+	}
 
 	if a.nftManager != nil {
 		a.nftManager.Close()
