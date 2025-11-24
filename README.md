@@ -392,6 +392,195 @@ When the rate limit is exceeded:
 - Applies to both incoming tasks and user messages
 - Value of `0` means unlimited (no rate limiting)
 
+## Real-time Push Messages via WebSocket
+
+Send real-time messages from your agent directly to chat rooms without waiting for user requests.
+
+### Quick Start
+
+```go
+// Initialize WebSocket connection
+if err := agent.Initialize("ws://localhost:8080/ws/stream"); err != nil {
+    log.Printf("Connection failed: %v", err)
+}
+defer agent.CloseWebSocket()
+
+// Send real-time alerts and notifications
+ctx := context.Background()
+agent.PushMessage(ctx, "alerts", map[string]interface{}{
+    "type": "price_alert",
+    "token": "BTC",
+    "price": 65000.0,
+    "change": "+5%",
+})
+```
+
+### Key Features
+
+- **Real-time Communication**: Send messages instantly via WebSocket
+- **Multiple Rooms**: Target different chat rooms with specific messages
+- **Flexible Payloads**: Send any JSON-serializable data
+- **Connection Management**: Built-in connect/disconnect with error handling
+- **Thread-safe**: All operations protected with mutexes
+
+### API Methods
+
+#### Initialize(wsURL string) error
+Connect to WebSocket server.
+```go
+err := agent.Initialize("ws://your-server:8080/ws/stream")
+```
+
+#### PushMessage(ctx context.Context, roomID string, payload interface{}) error
+Send message to a room.
+```go
+err := agent.PushMessage(ctx, "room123", map[string]interface{}{
+    "type": "notification",
+    "message": "Hello from agent!",
+})
+```
+
+#### CloseWebSocket() error
+Close connection and cleanup.
+```go
+defer agent.CloseWebSocket()
+```
+
+#### IsWebSocketConnected() bool
+Check connection status.
+```go
+if agent.IsWebSocketConnected() {
+    // Send message
+}
+```
+
+### Message Examples
+
+**Price Alert**
+```go
+agent.PushMessage(ctx, "alerts", map[string]interface{}{
+    "type": "pump_alert",
+    "token": "SHIB",
+    "price": 0.0000145,
+    "change_percent": 125.5,
+})
+```
+
+**Status Notification**
+```go
+agent.PushMessage(ctx, "status", map[string]interface{}{
+    "type": "status",
+    "status": "online",
+    "tasks_processed": 42,
+    "uptime_seconds": 3600,
+})
+```
+
+**Error Report**
+```go
+agent.PushMessage(ctx, "logs", map[string]interface{}{
+    "type": "error",
+    "level": "warning",
+    "message": "Task processing failed",
+    "reason": "Network timeout",
+})
+```
+
+### Error Handling
+
+```go
+// Check if connected before sending
+if !agent.IsWebSocketConnected() {
+    if err := agent.Initialize("ws://localhost:8080/ws/stream"); err != nil {
+        log.Printf("Failed to connect: %v", err)
+        return
+    }
+}
+
+// Use context with timeout
+ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+defer cancel()
+
+if err := agent.PushMessage(ctx, "room1", payload); err != nil {
+    log.Printf("Failed to send: %v", err)
+}
+```
+
+### Complete Example
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+    "time"
+    
+    "github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/agent"
+)
+
+type AlertAgent struct{}
+
+func (a *AlertAgent) ProcessTask(ctx context.Context, content string) (string, error) {
+    return "processed", nil
+}
+
+func main() {
+    config := agent.DefaultConfig()
+    config.Name = "Alert Agent"
+    config.Capabilities = []string{"alerts", "notifications"}
+    config.PrivateKey = os.Getenv("PRIVATE_KEY")
+    
+    enhancedAgent, err := agent.NewEnhancedAgent(&agent.EnhancedAgentConfig{
+        Config:       config,
+        AgentHandler: &AlertAgent{},
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    // Connect to WebSocket
+    if err := enhancedAgent.GetAgent().Initialize("ws://localhost:8080/ws/stream"); err != nil {
+        log.Printf("WebSocket connection failed: %v", err)
+    }
+    defer enhancedAgent.GetAgent().CloseWebSocket()
+    
+    // Send periodic alerts
+    go func() {
+        ticker := time.NewTicker(30 * time.Second)
+        defer ticker.Stop()
+        
+        for range ticker.C {
+            ctx := context.Background()
+            enhancedAgent.GetAgent().PushMessage(ctx, "alerts", map[string]interface{}{
+                "type": "status",
+                "message": "Agent is operational",
+                "timestamp": time.Now().Unix(),
+            })
+        }
+    }()
+    
+    log.Println("Starting agent...")
+    enhancedAgent.Run()
+}
+```
+
+### Documentation
+
+For comprehensive documentation including troubleshooting, best practices, and advanced usage, see [WEBSOCKET_PUSH_MESSAGE.md](./WEBSOCKET_PUSH_MESSAGE.md).
+
+### Testing
+
+```bash
+# Run WebSocket-related tests
+go test ./pkg/agent -v -run WebSocket
+
+# Run all agent tests
+go test ./pkg/agent -v
+```
+
+All tests are included and passing. See `pkg/agent/push_test.go` for complete test coverage.
+
 ## Persistent Caching with Redis
 
 The SDK includes built-in Redis support for persistent data storage across agent restarts. This enables stateful agents that can cache results, maintain session data, and coordinate across multiple instances.
