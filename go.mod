@@ -42,6 +42,12 @@ require (
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.37.0 // indirect
 )
+require (
+    github.com/TeneoProtocolAI/teneo-agent-sdk v0.1.0  // Use appropriate version
+)
+
+// Point to local clone
+replace github.com/TeneoProtocolAI/teneo-agent-sdk => ./teneo-agent-sdk
 
 // Pin crypto to version compatible with Go 1.21
 replace golang.org/x/crypto => golang.org/x/crypto v0.16.0
