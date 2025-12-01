@@ -1,0 +1,152 @@
+package modules
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"time"
+)
+
+// ForwardToOpenAI sends prompt to Google Generative Language (Gemini) using
+// the generateContent endpoint (v1beta). It expects env:
+//   GOOGLE_API_KEY   (your API key)
+//   GOOGLE_MODEL     (e.g. gemini-2.5-flash or models/gemini-2.5-flash — both accepted)
+// Returns generated text or detailed error (includes response body).
+func ForwardToOpenAI(prompt string) (string, error) {
+	key := os.Getenv("GOOGLE_API_KEY")
+	if key == "" {
+		return "", fmt.Errorf("GOOGLE_API_KEY not set in environment")
+	}
+
+	model := os.Getenv("GOOGLE_MODEL")
+	if model == "" {
+		model = "gemini-2.5-flash"
+	}
+	// tolerate "models/" prefix if user included it
+	model = trimModelsPrefix(model)
+
+	// Use the v1beta generateContent endpoint (more compatible for Gemini)
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", model, key)
+
+	// Request body using contents array (text-only)
+	reqBody := map[string]interface{}{
+		"model": model,
+		"contents": []interface{}{
+			map[string]interface{}{
+				"type": "text",
+				"text": prompt,
+			},
+		},
+		// optional tuning:
+		"temperature":     0.2,
+		"maxOutputTokens": 256,
+	}
+
+	b, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("marshal request body: %w", err)
+	}
+
+	client := &http.Client{Timeout: 25 * time.Second}
+	req, err := http.NewRequest("POST", url, bytes.NewReader(b))
+	if err != nil {
+		return "", fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("http request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	bodyStr := string(bodyBytes)
+
+	if resp.StatusCode == http.StatusNotFound {
+		// Surface full details to help debug model / access problems
+		return "", fmt.Errorf("google api 404 Not Found. url=%s status=%d body=%s", url, resp.StatusCode, bodyStr)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("google api error: status %d: %s", resp.StatusCode, bodyStr)
+	}
+
+	// Parse tolerant - try outputs / candidates / etc.
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(bodyBytes, &parsed); err != nil {
+		return "", fmt.Errorf("failed to parse google response: %w; raw: %s", err, bodyStr)
+	}
+
+	// Try common shapes: outputs -> content -> text; candidates -> content/text
+	// outputs -> content[0].text
+	if outs, ok := parsed["outputs"].([]interface{}); ok && len(outs) > 0 {
+		if first, ok := outs[0].(map[string]interface{}); ok {
+			if content, ok := first["content"].([]interface{}); ok && len(content) > 0 {
+				if c0, ok := content[0].(map[string]interface{}); ok {
+					if txt, ok := c0["text"].(string); ok && txt != "" {
+						return txt, nil
+					}
+				}
+			}
+			if txt, ok := first["text"].(string); ok && txt != "" {
+				return txt, nil
+			}
+		}
+	}
+
+	// candidates -> [0].content or [0].text
+	if cands, ok := parsed["candidates"].([]interface{}); ok && len(cands) > 0 {
+		if c0, ok := cands[0].(map[string]interface{}); ok {
+			if v, ok := c0["content"].(string); ok && v != "" {
+				return v, nil
+			}
+			if v, ok := c0["text"].(string); ok && v != "" {
+				return v, nil
+			}
+		}
+	}
+
+	// fallback: attempt to find any nested string
+	if s := findAnyString(parsed); s != "" {
+		return s, nil
+	}
+
+	// final fallback: return raw body (caller can log)
+	return bodyStr, nil
+}
+
+func trimModelsPrefix(m string) string {
+	if len(m) >= 7 && (m[:7] == "models/" || m[:7] == "/models") {
+		// remove leading "models/" if present
+		if m[:1] == "/" {
+			m = m[1:]
+		}
+		if len(m) > 7 {
+			return m[7:]
+		}
+	}
+	return m
+}
+
+func findAnyString(v interface{}) string {
+	switch vv := v.(type) {
+	case string:
+		return vv
+	case map[string]interface{}:
+		for _, val := range vv {
+			if s := findAnyString(val); s != "" {
+				return s
+			}
+		}
+	case []interface{}:
+		for _, it := range vv {
+			if s := findAnyString(it); s != "" {
+				return s
+			}
+		}
+	}
+	return ""
+}
