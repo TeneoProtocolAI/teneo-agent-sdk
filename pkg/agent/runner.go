@@ -192,6 +192,9 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 			}
 		}
 
+		// Propagate TokenID to config so WebSocket auth includes it
+		config.Config.NFTTokenID = fmt.Sprintf("%d", config.TokenID)
+
 		// Generate and send metadata hash
 		metadata := nft.AgentMetadata{
 			Name:         config.Config.Name,
