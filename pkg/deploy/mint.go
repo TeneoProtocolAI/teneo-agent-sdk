@@ -44,13 +44,29 @@ type Capability struct {
 	Description string `json:"description,omitempty"`
 }
 
+// CommandParameter represents a parameter for an agent command
+type CommandParameter struct {
+	Name           string `json:"name"`
+	Type           string `json:"type"`
+	Required       bool   `json:"required"`
+	Description    string `json:"description,omitempty"`
+	MinValue       string `json:"minValue,omitempty"`
+	IsBillingCount bool   `json:"isBillingCount,omitempty"`
+}
+
 // Command represents an agent command
 type Command struct {
-	Trigger      string   `json:"trigger"`
-	Description  string   `json:"description,omitempty"`
-	PricePerUnit float64  `json:"pricePerUnit,omitempty"`
-	PriceType    string   `json:"priceType,omitempty"`
-	TaskUnit     string   `json:"taskUnit,omitempty"`
+	Trigger      string             `json:"trigger"`
+	Argument     string             `json:"argument,omitempty"`
+	Description  string             `json:"description,omitempty"`
+	Parameters   []CommandParameter `json:"parameters,omitempty"`
+	StrictArg    *bool              `json:"strictArg,omitempty"`
+	MinArgs      *int               `json:"minArgs,omitempty"`
+	MaxArgs      *int               `json:"maxArgs,omitempty"`
+	PricePerUnit float64            `json:"pricePerUnit,omitempty"`
+	PriceType    string             `json:"priceType,omitempty"`
+	TaskUnit     string             `json:"taskUnit,omitempty"`
+	TimeUnit     string             `json:"timeUnit,omitempty"`
 }
 
 // MintResult is defined in chain.go with fields:
@@ -661,16 +677,22 @@ func (m *Minter) recoverFromWAL(ctx context.Context, wal *WALEntry, config *Agen
 	return m.syncAndMint(ctx, config, wal.ConfigHash, "")
 }
 
-// GenerateConfigHash generates a canonical hash of the agent config.
+// GenerateConfigHash generates a canonical v4 hash of the agent config.
+// v4 includes ALL command fields (description, argument, parameters, strictArg, minArgs,
+// maxArgs, priceType, taskUnit, timeUnit) and capability descriptions — so any change
+// to any field triggers an IPFS re-upload.
 // Image is deliberately excluded — image changes are cosmetic, not functional.
-// Includes: agentId, name, description, agentType, capabilities, nlpFallback, categories, command triggers+prices
 func GenerateConfigHash(config *AgentConfig) string {
-	// Sort capabilities alphabetically by name
-	capNames := make([]string, len(config.Capabilities))
-	for i, cap := range config.Capabilities {
-		capNames[i] = cap.Name
+	// Sort capabilities alphabetically by name (include description)
+	caps := make([]Capability, len(config.Capabilities))
+	copy(caps, config.Capabilities)
+	sort.Slice(caps, func(i, j int) bool {
+		return caps[i].Name < caps[j].Name
+	})
+	capParts := make([]string, len(caps))
+	for i, c := range caps {
+		capParts[i] = c.Name + "~" + c.Description
 	}
-	sort.Strings(capNames)
 
 	// Sort categories
 	categories := make([]string, len(config.Categories))
@@ -679,37 +701,61 @@ func GenerateConfigHash(config *AgentConfig) string {
 
 	// Build deterministic string (no image)
 	parts := []string{
-		"v3",
+		"v4",
 		config.AgentID,
 		config.Name,
 		config.Description,
 		config.AgentType,
-		strings.Join(capNames, ","),
+		strings.Join(capParts, ","),
 		strconv.FormatBool(config.NlpFallback),
 		strings.Join(categories, ","),
 	}
 
-	// Include commands with prices (sorted by trigger for determinism)
+	// Include full command data (sorted by trigger for determinism)
 	if len(config.Commands) > 0 {
-		// Build trigger:price pairs sorted by trigger
-		type cmdEntry struct {
-			trigger string
-			price   string
-		}
-		entries := make([]cmdEntry, len(config.Commands))
-		for i, cmd := range config.Commands {
-			entries[i] = cmdEntry{
-				trigger: cmd.Trigger,
-				price:   strconv.FormatFloat(cmd.PricePerUnit, 'f', -1, 64),
-			}
-		}
-		sort.Slice(entries, func(i, j int) bool {
-			return entries[i].trigger < entries[j].trigger
+		cmds := make([]Command, len(config.Commands))
+		copy(cmds, config.Commands)
+		sort.Slice(cmds, func(i, j int) bool {
+			return cmds[i].Trigger < cmds[j].Trigger
 		})
 
-		cmdParts := make([]string, len(entries))
-		for i, e := range entries {
-			cmdParts[i] = e.trigger + ":" + e.price
+		cmdParts := make([]string, len(cmds))
+		for i, cmd := range cmds {
+			// Sort parameters by name
+			params := make([]CommandParameter, len(cmd.Parameters))
+			copy(params, cmd.Parameters)
+			sort.Slice(params, func(a, b int) bool {
+				return params[a].Name < params[b].Name
+			})
+			paramParts := make([]string, len(params))
+			for j, p := range params {
+				paramParts[j] = p.Name + "~" + p.Type + "~" + strconv.FormatBool(p.Required) + "~" + p.Description + "~" + p.MinValue + "~" + strconv.FormatBool(p.IsBillingCount)
+			}
+
+			strict := "false"
+			if cmd.StrictArg != nil && *cmd.StrictArg {
+				strict = "true"
+			}
+			minArgs := "0"
+			if cmd.MinArgs != nil {
+				minArgs = strconv.Itoa(*cmd.MinArgs)
+			}
+			maxArgs := "0"
+			if cmd.MaxArgs != nil {
+				maxArgs = strconv.Itoa(*cmd.MaxArgs)
+			}
+
+			cmdParts[i] = cmd.Trigger + ":" +
+				cmd.Argument + ":" +
+				cmd.Description + ":" +
+				strconv.FormatFloat(cmd.PricePerUnit, 'f', -1, 64) + ":" +
+				cmd.PriceType + ":" +
+				cmd.TaskUnit + ":" +
+				cmd.TimeUnit + ":" +
+				strict + ":" +
+				minArgs + ":" +
+				maxArgs + ":" +
+				strings.Join(paramParts, ";")
 		}
 		parts = append(parts, strings.Join(cmdParts, ","))
 	}

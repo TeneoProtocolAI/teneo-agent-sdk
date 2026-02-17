@@ -109,6 +109,98 @@ func TestGenerateConfigHash(t *testing.T) {
 			},
 		},
 		{
+			name: "command parameters affect hash",
+			config: &AgentConfig{
+				AgentID:      "test",
+				Name:         "Test",
+				Description:  "Test description",
+				AgentType:    "command",
+				Capabilities: []Capability{{Name: "cap", Description: "desc"}},
+				Categories:   []string{"AI"},
+				Commands: []Command{{
+					Trigger:      "cmd1",
+					PricePerUnit: 0.01,
+					PriceType:    "task-transaction",
+					TaskUnit:     "per-query",
+				}},
+			},
+			wantSame: false,
+			config2: &AgentConfig{
+				AgentID:      "test",
+				Name:         "Test",
+				Description:  "Test description",
+				AgentType:    "command",
+				Capabilities: []Capability{{Name: "cap", Description: "desc"}},
+				Categories:   []string{"AI"},
+				Commands: []Command{{
+					Trigger:      "cmd1",
+					Argument:     "<input>",
+					Description:  "Does something",
+					PricePerUnit: 0.01,
+					PriceType:    "task-transaction",
+					TaskUnit:     "per-query",
+					Parameters: []CommandParameter{
+						{Name: "input", Type: "string", Required: true, Description: "The input"},
+					},
+				}},
+			},
+		},
+		{
+			name: "command strictArg affects hash",
+			config: &AgentConfig{
+				AgentID:      "test",
+				Name:         "Test",
+				Description:  "Test description",
+				AgentType:    "command",
+				Capabilities: []Capability{{Name: "cap", Description: "desc"}},
+				Categories:   []string{"AI"},
+				Commands: []Command{{
+					Trigger:      "cmd1",
+					PricePerUnit: 0.01,
+					PriceType:    "task-transaction",
+					TaskUnit:     "per-query",
+				}},
+			},
+			wantSame: false,
+			config2: &AgentConfig{
+				AgentID:      "test",
+				Name:         "Test",
+				Description:  "Test description",
+				AgentType:    "command",
+				Capabilities: []Capability{{Name: "cap", Description: "desc"}},
+				Categories:   []string{"AI"},
+				Commands: []Command{{
+					Trigger:      "cmd1",
+					PricePerUnit: 0.01,
+					PriceType:    "task-transaction",
+					TaskUnit:     "per-query",
+					StrictArg:    boolPtr(true),
+					MinArgs:      intPtr(1),
+					MaxArgs:      intPtr(1),
+				}},
+			},
+		},
+		{
+			name: "capability description affects hash",
+			config: &AgentConfig{
+				AgentID:      "test",
+				Name:         "Test",
+				Description:  "Test description",
+				AgentType:    "command",
+				Capabilities: []Capability{{Name: "cap", Description: "original desc"}},
+				Categories:   []string{"AI"},
+			},
+			wantSame: false,
+			config2: &AgentConfig{
+				AgentID:      "test",
+				Name:         "Test",
+				Description:  "Test description",
+				AgentType:    "command",
+				Capabilities: []Capability{{Name: "cap", Description: "updated desc"}},
+				Categories:   []string{"AI"},
+			},
+		},
+		{
 			name: "description affects hash",
 			config: &AgentConfig{
 				AgentID:      "test",
@@ -391,6 +483,9 @@ func TestValidateConfig(t *testing.T) {
 		})
 	}
 }
+
+func boolPtr(b bool) *bool { return &b }
+func intPtr(i int) *int   { return &i }
 
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))

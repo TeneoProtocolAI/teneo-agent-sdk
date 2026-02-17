@@ -412,20 +412,28 @@ func (m *NFTMinter) parsePayloadAndHash(rawJSON []byte) (*sdkAgentPayload, []byt
 // generateCanonicalConfigHash produces the v3 config hash matching the server algorithm.
 // Includes: agentId, name, description, agentType, capabilities, nlpFallback, categories, command triggers+prices.
 // Image is deliberately excluded — image changes are cosmetic, not functional.
+// generateCanonicalConfigHash produces the v4 config hash matching the server algorithm.
+// v4 includes ALL command fields (description, argument, parameters, strictArg, minArgs,
+// maxArgs, priceType, taskUnit, timeUnit) and capability descriptions — so any change
+// to any field triggers an IPFS re-upload.
+// Image is deliberately excluded — image changes are cosmetic, not functional.
 func (m *NFTMinter) generateCanonicalConfigHash(config *sdkAgentPayload) string {
-	// Parse capability names from JSON
+	// Parse capabilities from JSON (name + description)
 	type capEntry struct {
-		Name string `json:"name"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
 	}
 	var caps []capEntry
 	if len(config.Capabilities) > 0 {
 		_ = json.Unmarshal(config.Capabilities, &caps)
 	}
-	capNames := make([]string, len(caps))
+	sort.Slice(caps, func(i, j int) bool {
+		return caps[i].Name < caps[j].Name
+	})
+	capParts := make([]string, len(caps))
 	for i, c := range caps {
-		capNames[i] = c.Name
+		capParts[i] = c.Name + "~" + c.Description
 	}
-	sort.Strings(capNames)
 
 	// Parse categories from JSON
 	var categories []string
@@ -436,20 +444,37 @@ func (m *NFTMinter) generateCanonicalConfigHash(config *sdkAgentPayload) string 
 
 	// Build deterministic string
 	parts := []string{
-		"v3",
+		"v4",
 		config.AgentID,
 		config.Name,
 		config.Description,
 		config.AgentType,
-		strings.Join(capNames, ","),
+		strings.Join(capParts, ","),
 		strconv.FormatBool(config.NlpFallback),
 		strings.Join(categories, ","),
 	}
 
-	// Parse and include commands with prices (sorted by trigger)
+	// Parse and include full command data (sorted by trigger)
+	type paramEntry struct {
+		Name           string `json:"name"`
+		Type           string `json:"type"`
+		Required       bool   `json:"required"`
+		Description    string `json:"description"`
+		MinValue       string `json:"minValue"`
+		IsBillingCount bool   `json:"isBillingCount"`
+	}
 	type cmdEntry struct {
-		Trigger      string  `json:"trigger"`
-		PricePerUnit float64 `json:"pricePerUnit"`
+		Trigger      string          `json:"trigger"`
+		Argument     string          `json:"argument"`
+		Description  string          `json:"description"`
+		Parameters   json.RawMessage `json:"parameters"`
+		StrictArg    *bool           `json:"strictArg"`
+		MinArgs      *int            `json:"minArgs"`
+		MaxArgs      *int            `json:"maxArgs"`
+		PricePerUnit float64         `json:"pricePerUnit"`
+		PriceType    string          `json:"priceType"`
+		TaskUnit     string          `json:"taskUnit"`
+		TimeUnit     string          `json:"timeUnit"`
 	}
 	var cmds []cmdEntry
 	if len(config.Commands) > 0 {
@@ -461,7 +486,43 @@ func (m *NFTMinter) generateCanonicalConfigHash(config *sdkAgentPayload) string 
 		})
 		cmdParts := make([]string, len(cmds))
 		for i, cmd := range cmds {
-			cmdParts[i] = cmd.Trigger + ":" + strconv.FormatFloat(cmd.PricePerUnit, 'f', -1, 64)
+			// Parse parameters for this command
+			var params []paramEntry
+			if len(cmd.Parameters) > 0 {
+				_ = json.Unmarshal(cmd.Parameters, &params)
+			}
+			sort.Slice(params, func(a, b int) bool {
+				return params[a].Name < params[b].Name
+			})
+			paramParts := make([]string, len(params))
+			for j, p := range params {
+				paramParts[j] = p.Name + "~" + p.Type + "~" + strconv.FormatBool(p.Required) + "~" + p.Description + "~" + p.MinValue + "~" + strconv.FormatBool(p.IsBillingCount)
+			}
+
+			strict := "false"
+			if cmd.StrictArg != nil && *cmd.StrictArg {
+				strict = "true"
+			}
+			minArgs := "0"
+			if cmd.MinArgs != nil {
+				minArgs = strconv.Itoa(*cmd.MinArgs)
+			}
+			maxArgs := "0"
+			if cmd.MaxArgs != nil {
+				maxArgs = strconv.Itoa(*cmd.MaxArgs)
+			}
+
+			cmdParts[i] = cmd.Trigger + ":" +
+				cmd.Argument + ":" +
+				cmd.Description + ":" +
+				strconv.FormatFloat(cmd.PricePerUnit, 'f', -1, 64) + ":" +
+				cmd.PriceType + ":" +
+				cmd.TaskUnit + ":" +
+				cmd.TimeUnit + ":" +
+				strict + ":" +
+				minArgs + ":" +
+				maxArgs + ":" +
+				strings.Join(paramParts, ";")
 		}
 		parts = append(parts, strings.Join(cmdParts, ","))
 	}
