@@ -19,7 +19,7 @@ Example metadata files for minting Teneo agents via `nft.Mint("agent-metadata.js
 | `description` | 10-2000 characters, no HTML |
 | `agent_type` | `command`, `nlp`, or `mcp` |
 | `capabilities` | Array of `{"name": "...", "description": "..."}` objects. Min 1, max 50. |
-| `categories` | 1-2 string items |
+| `categories` | 1-2 items from valid list: `Trading`, `Finance`, `Crypto`, `Social Media`, `Lead Generation`, `E-Commerce`, `SEO`, `News`, `Real Estate`, `Travel`, `Automation`, `Developer Tools`, `AI`, `Integrations`, `Open Source`, `Jobs`, `Price Lists`, `Other`. **Case-sensitive. Invalid categories will block future updates.** |
 | `metadata_version` | Currently `"2.3.0"` |
 
 ## Optional Fields
