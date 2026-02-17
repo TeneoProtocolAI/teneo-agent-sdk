@@ -7,11 +7,11 @@
   "capabilities": [
     {
       "name": "social/profile_lookup",
-      "description": "Retrieves public profile information with normalized fields."
+      "description": "Retrieves public profile information including verification status, follower/following counts, bio, and account statistics."
     },
     {
       "name": "social/timeline_fetch",
-      "description": "Fetches recent posts with engagement metrics and timestamps."
+      "description": "Fetches recent posts with engagement metrics, timestamps, and media information."
     },
     {
       "name": "social/mention_monitoring",
@@ -19,34 +19,98 @@
     },
     {
       "name": "social/post_analytics",
-      "description": "Returns detailed metrics for an individual post by ID or URL."
+      "description": "Returns detailed engagement metrics for an individual post by ID or URL."
     }
   ],
   "commands": [
     {
       "trigger": "profile",
-      "description": "Returns profile details including account age, verification status, and public counters.",
+      "argument": "<username>",
+      "description": "Fetches comprehensive user profile including display name, bio, verification status, follower/following counts, tweet count, account creation date, location, and website URL.",
+      "parameters": [
+        {
+          "name": "username",
+          "type": "username",
+          "required": true,
+          "description": "Social media handle (without @)"
+        }
+      ],
+      "strictArg": true,
+      "minArgs": 1,
+      "maxArgs": 1,
       "pricePerUnit": 0.001,
       "priceType": "task-transaction",
       "taskUnit": "per-query"
     },
     {
       "trigger": "timeline",
-      "description": "Fetches recent posts for a username with configurable count.",
+      "argument": "<username> <count>",
+      "description": "Retrieves user's recent posts with optional count parameter (default: 10, max: 100). Returns formatted timeline with engagement metrics and statistics.",
+      "parameters": [
+        {
+          "name": "username",
+          "type": "username",
+          "required": true,
+          "description": "Social media handle (without @)"
+        },
+        {
+          "name": "count",
+          "type": "number",
+          "required": true,
+          "minValue": "1",
+          "description": "Number of posts to fetch",
+          "isBillingCount": true
+        }
+      ],
+      "strictArg": true,
+      "minArgs": 2,
+      "maxArgs": 2,
       "pricePerUnit": 0.0008,
       "priceType": "task-transaction",
       "taskUnit": "per-item"
     },
     {
       "trigger": "mentions",
-      "description": "Returns recent mention entries for a username.",
+      "argument": "<username> <count>",
+      "description": "Returns recent mentions for a username — tweets from other users that mention the target, including engagement metrics and timestamps.",
+      "parameters": [
+        {
+          "name": "username",
+          "type": "username",
+          "required": true,
+          "description": "Social media handle to search mentions for"
+        },
+        {
+          "name": "count",
+          "type": "number",
+          "required": true,
+          "minValue": "1",
+          "description": "Number of mentions to return",
+          "isBillingCount": true
+        }
+      ],
+      "strictArg": true,
+      "minArgs": 2,
+      "maxArgs": 2,
       "pricePerUnit": 0.0008,
       "priceType": "task-transaction",
       "taskUnit": "per-item"
     },
     {
       "trigger": "post_stats",
-      "description": "Returns detailed engagement metrics for a single post.",
+      "argument": "<ID_or_URL>",
+      "description": "Returns detailed engagement metrics for a single post including views, likes, retweets, replies, quotes, and bookmarks. Accepts post IDs or URLs.",
+      "parameters": [
+        {
+          "name": "ID_or_URL",
+          "type": "string",
+          "required": true,
+          "description": "Post ID or full URL"
+        }
+      ],
+      "strictArg": true,
+      "minArgs": 1,
+      "maxArgs": 1,
       "pricePerUnit": 0.04,
       "priceType": "task-transaction",
       "taskUnit": "per-query"
@@ -54,6 +118,10 @@
     {
       "trigger": "help",
       "description": "Lists all commands and usage examples.",
+      "parameters": [],
+      "strictArg": true,
+      "minArgs": 0,
+      "maxArgs": 0,
       "pricePerUnit": 0,
       "priceType": "task-transaction",
       "taskUnit": "per-query"

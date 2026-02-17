@@ -13,6 +13,10 @@
     {
       "trigger": "ping",
       "description": "Returns a pong response to verify the agent is alive.",
+      "parameters": [],
+      "strictArg": true,
+      "minArgs": 0,
+      "maxArgs": 0,
       "pricePerUnit": 0,
       "priceType": "task-transaction",
       "taskUnit": "per-query"

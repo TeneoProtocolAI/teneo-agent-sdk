@@ -13,7 +13,19 @@
   "commands": [
     {
       "trigger": "example_command",
+      "argument": "<input>",
       "description": "Description of what this command does",
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "description": "The input for this command"
+        }
+      ],
+      "strictArg": true,
+      "minArgs": 1,
+      "maxArgs": 1,
       "pricePerUnit": 0.001,
       "priceType": "task-transaction",
       "taskUnit": "per-query"

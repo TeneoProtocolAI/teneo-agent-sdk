@@ -21,21 +21,57 @@
   "commands": [
     {
       "trigger": "quick_research",
+      "argument": "<topic>",
       "description": "Performs a fast web search and returns a concise answer with sources.",
+      "parameters": [
+        {
+          "name": "topic",
+          "type": "string",
+          "required": true,
+          "description": "Research topic or question"
+        }
+      ],
+      "strictArg": true,
+      "minArgs": 1,
+      "maxArgs": 1,
       "pricePerUnit": 0.005,
       "priceType": "task-transaction",
       "taskUnit": "per-query"
     },
     {
       "trigger": "deep_research",
-      "description": "Performs comprehensive multi-source research and generates a detailed report.",
+      "argument": "<topic>",
+      "description": "Performs comprehensive multi-source research and generates a detailed report with citations.",
+      "parameters": [
+        {
+          "name": "topic",
+          "type": "string",
+          "required": true,
+          "description": "Research topic for in-depth analysis"
+        }
+      ],
+      "strictArg": true,
+      "minArgs": 1,
+      "maxArgs": 1,
       "pricePerUnit": 0.02,
       "priceType": "task-transaction",
       "taskUnit": "per-query"
     },
     {
       "trigger": "summarize",
-      "description": "Analyzes a document or URL and produces a structured summary.",
+      "argument": "<URL_or_text>",
+      "description": "Analyzes a document or URL and produces a structured summary with key insights.",
+      "parameters": [
+        {
+          "name": "URL_or_text",
+          "type": "string",
+          "required": true,
+          "description": "URL or text to summarize"
+        }
+      ],
+      "strictArg": true,
+      "minArgs": 1,
+      "maxArgs": 1,
       "pricePerUnit": 0.005,
       "priceType": "task-transaction",
       "taskUnit": "per-query"
