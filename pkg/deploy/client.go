@@ -67,6 +67,11 @@ type DeployResponse struct {
 	RPCURL          string `json:"rpc_url"`
 	AgentID         string `json:"agent_id"`
 	ConfigHash      string `json:"config_hash"`
+	// Gasless minting fields (populated when server mints on behalf of SDK)
+	TokenID     int64  `json:"token_id,omitempty"`
+	TxHash      string `json:"tx_hash,omitempty"`
+	MetadataURI string `json:"metadata_uri,omitempty"`
+	Gasless     bool   `json:"gasless"`
 }
 
 // ConfirmMintRequest is the request body for /api/sdk/agent/confirm-mint.
@@ -246,7 +251,9 @@ func (c *HTTPClient) Deploy(sessionToken string, req *DeployRequest) (*DeployRes
 	httpReq.Header.Set("X-SDK-Session-Token", sessionToken)
 	httpReq.Header.Set("X-SDK-Version", version.Version())
 
-	resp, err := c.httpClient.Do(httpReq)
+	// Use a longer timeout for deploy — gasless minting can take up to 3 minutes
+	deployClient := &http.Client{Timeout: 180 * time.Second}
+	resp, err := deployClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call deploy endpoint: %w", err)
 	}
@@ -430,8 +437,8 @@ func (c *HTTPClient) UpdateMetadata(sessionToken string, req *UpdateMetadataRequ
 // ErrSessionExpired indicates the session token has expired
 var ErrSessionExpired = fmt.Errorf("session expired")
 
-// ErrHeadlessMintingDisabled indicates headless minting is disabled
-var ErrHeadlessMintingDisabled = fmt.Errorf("headless minting is temporarily disabled")
+// ErrGaslessMintingDisabled indicates gasless minting is disabled
+var ErrGaslessMintingDisabled = fmt.Errorf("gasless minting is temporarily disabled")
 
 // ErrSchemaOutdated indicates the schema version is outdated
 var ErrSchemaOutdated = fmt.Errorf("schema version outdated")
@@ -548,8 +555,8 @@ func (c *HTTPClient) Sync(req *SyncRequest) (*SyncResponse, error) {
 	if resp.StatusCode == http.StatusServiceUnavailable {
 		var errResp map[string]interface{}
 		if json.Unmarshal(body, &errResp) == nil {
-			if errResp["error"] == "HEADLESS_MINTING_DISABLED" {
-				return nil, ErrHeadlessMintingDisabled
+			if errResp["error"] == "HEADLESS_MINTING_DISABLED" || errResp["error"] == "GASLESS_MINTING_DISABLED" {
+				return nil, ErrGaslessMintingDisabled
 			}
 		}
 		return nil, fmt.Errorf("service unavailable: %s", string(body))

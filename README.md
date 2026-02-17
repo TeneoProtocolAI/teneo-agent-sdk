@@ -8,21 +8,27 @@ Build autonomous agents for the Teneo Network in Go.
 
 You implement task logic once, and the SDK handles the operational parts that are usually painful to build from scratch: network transport, authentication, identity registration, lifecycle, and resilience.
 
-[Deploy Platform](https://deploy.teneo-protocol.ai) · [Agent Console](https://agent-console.ai) · [Examples](examples/) · [Docs](docs/) · [Discord](https://discord.com/invite/teneoprotocol) · [Acquire $PEAQ Tokens](#acquire-peaq-tokens)
+[Deploy Platform](https://deploy.teneo-protocol.ai) · [Agent Console](https://agent-console.ai) · [Examples](examples/) · [Docs](docs/) · [Discord](https://discord.com/invite/teneoprotocol)
 
-## Agents on Teneo
+## Build Agents That Earn
 
-Agents are specialized AI applications that act as the network intelligence layer. They transform swarm data into actionable outputs for specific workflows.
+Agents on Teneo are specialized AI applications that serve real users through the [Agent Console](https://agent-console.ai) — a live environment where humans and agents collaborate in rooms.
 
-With this SDK, you can build your own agent, deploy it, and run it in the same network as other agents.
+Every agent can be monetized. You define commands with pricing, and the platform handles payment settlement via the [x402 protocol](https://teneo.gitbook.io/teneo-docs/the-multi-agent-system/the-agent-console/x402-live-payments). Users pay per task, and you earn per execution.
 
-## The Agent Console
+**How to bring value:**
 
-The Agent Console is a live environment where humans and agents collaborate in real time.
+- Solve a real problem — search, analysis, monitoring, on-chain actions, API orchestration
+- Define clear commands with descriptions so users know what your agent does
+- Set fair pricing per command (`pricePerUnit` in your agent metadata)
+- Make your agent public so the community can discover and use it
 
-- **private rooms**: personal workspaces to select agents, chat, and execute tasks.
-- **public rooms**: read-only spaces to observe live agent outputs across the network.
-- **agents**: specialized tools for search, analysis, monitoring, and on-chain actions.
+**How monetization works:**
+
+1. You define commands with `pricePerUnit`, `priceType`, and `taskUnit` in your agent config
+2. Users see your pricing before executing a task
+3. Payment is verified and settled on-chain before your agent processes the task
+4. Your `ProcessTask` logic stays the same — the platform handles payments around it
 
 ## What the SDK Delivers
 
@@ -31,6 +37,7 @@ The Agent Console is a live environment where humans and agents collaborate in r
 - **Reliable networking**: WebSocket handling, reconnects, retries, and protocol routing.
 - **Task execution model**: plug in your business logic via `ProcessTask`, optionally stream multi-step responses.
 - **NFT-backed agent identity**: reuse existing token IDs or let the SDK deploy/mint automatically.
+- **Gasless minting**: the server mints your agent identity on your behalf — your wallet doesn't need any tokens.
 - **Operational tooling**: health endpoints, rate limiting, and optional Redis-backed state.
 
 In short: this SDK lets you focus on **what your agent does**, not on **how to run and maintain the agent infrastructure**.
@@ -129,11 +136,39 @@ go get github.com/joho/godotenv
 
 ```bash
 PRIVATE_KEY=your_private_key
-# optional if you already have an NFT token
-# NFT_TOKEN_ID=12345
+ACCEPT_EULA=true
 ```
 
-### Step 3: Add your own task logic (`main.go`)
+### Step 3: Create `my-agent-metadata.json`
+
+```json
+{
+  "name": "My First Teneo Agent",
+  "agent_id": "my-first-teneo-agent",
+  "description": "Simple custom task agent that responds to commands.",
+  "agent_type": "command",
+  "capabilities": [
+    {
+      "name": "general",
+      "description": "Responds to basic commands"
+    }
+  ],
+  "commands": [
+    {
+      "trigger": "ping",
+      "description": "Returns pong",
+      "pricePerUnit": 0,
+      "priceType": "task-transaction",
+      "taskUnit": "per-query"
+    }
+  ],
+  "nlp_fallback": false,
+  "categories": ["Utilities"],
+  "metadata_version": "2.3.0"
+}
+```
+
+### Step 4: Add your own task logic (`main.go`)
 
 ```go
 package main
@@ -145,6 +180,7 @@ import (
 	"strings"
 
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/agent"
+	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/nft"
 	"github.com/joho/godotenv"
 )
 
@@ -165,6 +201,15 @@ func (a *MyAgent) ProcessTask(ctx context.Context, task string) (string, error) 
 func main() {
 	_ = godotenv.Load()
 
+	// Mint or resume agent from JSON metadata (gasless — server pays all fees)
+	// Reads PRIVATE_KEY from env automatically
+	result, err := nft.Mint("my-agent-metadata.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("Agent ready — token_id=%d", result.TokenID)
+
+	// Start the agent
 	cfg := agent.DefaultConfig()
 	cfg.Name = "My First Teneo Agent"
 	cfg.Description = "Simple custom task agent"
@@ -173,20 +218,19 @@ func main() {
 	a, err := agent.NewEnhancedAgent(&agent.EnhancedAgentConfig{
 		Config:       cfg,
 		AgentHandler: &MyAgent{},
-		Deploy:       os.Getenv("NFT_TOKEN_ID") == "",
+		TokenID:      result.TokenID,
 	})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	log.Println("starting agent...")
 	if err := a.Run(); err != nil {
 		log.Fatal(err)
 	}
 }
 ```
 
-### Step 4: Run
+### Step 5: Run
 
 ```bash
 go mod tidy
@@ -222,33 +266,38 @@ if err := openaiAgent.Run(); err != nil {
 }
 ```
 
-## Headless Minting Metadata (JSON)
+## Gasless Minting
 
-For headless minting with `nft.NewNFTMinter(...).MintOrResumeFromJSONFile(...)`, use the following metadata format.
+The server mints the NFT identity for your agent on your behalf. Your wallet doesn't need any tokens — no gas fees, no minting costs. No extra configuration is needed.
 
-### Required fields
+### How it works
 
-- `name` (min 3 chars)
-- `agent_id` (lowercase letters, numbers, hyphens only, max 64 chars, globally unique)
-- `description` (min 10 chars)
-- `agent_type` (`command`, `nlp`, or `mcp`)
-- `capabilities` (array of `{name, description}` objects, min 1, max 50)
-- `categories` (at least 1 item, max 2)
-- `metadata_version` (currently `"2.3.0"`)
+1. You prepare a JSON metadata file that describes your agent
+2. You call `deploy.MintAgent()` or `nft.NewNFTMinter(...).MintOrResumeFromJSONFile(...)` with your JSON
+3. The server mints the NFT, uploads metadata to IPFS, and returns your token ID
+4. Your agent is ready to connect
 
-### Optional fields
+**Already have an NFT?** If you already minted through the [Deploy UI](https://deploy.teneo-protocol.ai), just set `NFT_TOKEN_ID` in your `.env`. The SDK detects it automatically — no reminting happens. The system authenticates your agent using your existing token.
 
-- `image` — URL, IPFS URI, or base64
-- `commands` — array of command objects (max 100)
-- `nlp_fallback` — enables fallback NLP handling
+### Your `agent_id` is your agent's permanent identity
 
-### Minimal valid metadata
+The `agent_id` in your JSON metadata is a unique identifier you choose once for your agent. It doesn't change — every time you run your agent with the same JSON, the system recognizes it by `agent_id` and re-authenticates without reminting.
+
+- **Same `agent_id`** = same agent. The system syncs your JSON, authenticates your wallet, and connects. No new NFT is created.
+- **Different `agent_id`** = new agent. The system treats it as a brand new agent and mints a new NFT for it.
+- **Changed your JSON?** If you update your agent's name, description, commands, or any other field but keep the same `agent_id`, the system detects the change automatically and re-uploads the updated metadata to IPFS. Your agent stays the same identity with updated configuration.
+
+In short: set your `agent_id` once, keep using the same JSON file, and the SDK handles the rest.
+
+### Prepare your JSON metadata
+
+Your agent metadata describes what your agent is and what it can do. Prepare it in this format:
 
 ```json
 {
   "name": "Example Command Agent",
   "agent_id": "example-command-agent",
-  "description": "Example metadata template for headless minting with command-based workflows.",
+  "description": "A command-based agent that responds to specific triggers with structured outputs.",
   "agent_type": "command",
   "capabilities": [
     {
@@ -256,6 +305,16 @@ For headless minting with `nft.NewNFTMinter(...).MintOrResumeFromJSONFile(...)`,
       "description": "What this capability does"
     }
   ],
+  "commands": [
+    {
+      "trigger": "hello",
+      "description": "Returns a greeting response",
+      "pricePerUnit": 0,
+      "priceType": "task-transaction",
+      "taskUnit": "per-query"
+    }
+  ],
+  "nlp_fallback": false,
   "categories": [
     "Utilities"
   ],
@@ -263,56 +322,90 @@ For headless minting with `nft.NewNFTMinter(...).MintOrResumeFromJSONFile(...)`,
 }
 ```
 
-### Full examples
+Required fields: `name`, `agent_id`, `description`, `agent_type`, `capabilities`, `commands`, `categories`, `metadata_version`.
 
-See [`agent-json-examples/README.md`](agent-json-examples/README.md) for the complete list.
+Optional: `image` (URL, IPFS URI, or base64), `nlp_fallback` (default `false`).
 
-- `agent-json-examples/headless-agent-template.json` — minimal template
+You can find ready-to-use examples in [`agent-json-examples/`](agent-json-examples/README.md):
+
+- `agent-json-examples/gasless-agent-template.json` — minimal template
 - `agent-json-examples/example-1-agent.json` — command-based location agent
 - `agent-json-examples/example-2-agents.json` — command-based social agent
 - `agent-json-examples/example-3-nlp-agent.json` — NLP research agent
 - `agent-json-examples/example-4-mcp-agent.json` — MCP blockchain agent
 - `agent-json-examples/example-5-minimal-agent.json` — absolute minimum agent
 
-### Headless mint call example
+### Call the mint function
+
+Use `nft.Mint` to mint your agent from the JSON file. It reads `PRIVATE_KEY` from env automatically:
 
 ```go
-minter, err := nft.NewNFTMinter(backendURL, rpcEndpoint, privateKey)
+result, err := nft.Mint("my-agent-metadata.json")
 if err != nil {
 	log.Fatal(err)
 }
 
-result, err := minter.MintOrResumeFromJSONFile("agent-json-examples/headless-agent-template.json")
-if err != nil {
-	log.Fatal(err)
-}
-
-log.Printf("mint status=%s token_id=%d tx=%s", result.Status, result.TokenID, result.TxHash)
+log.Printf("token_id=%d tx=%s", result.TokenID, result.TxHash)
 ```
 
-## Where Your Agent Appears
+After this call, your agent has an on-chain identity and is ready to connect to the Teneo network.
 
-After startup and registration, your agent is visible in the [Agent Console](https://agent-console.ai).
+## Step-by-Step: Creating and Deploying an Agent
 
-- default visibility is owner-only
-- visibility and pricing are managed in [deploy.teneo-protocol.ai/my-agents](https://deploy.teneo-protocol.ai/my-agents)
+### 1. Generate an Ethereum private key
 
-## NFT Identity: Deployment and Minting
+Your agent needs an Ethereum private key for identity. You can generate one with any Ethereum wallet tool (MetaMask, ethers.js, etc.) or use [Vanity ETH](https://vanity-eth.tk/) ([GitHub](https://github.com/bokub/vanity-eth)) to generate a key directly in your browser or via code.
 
-Every agent needs an NFT identity.
+### 2. Create the project
 
-- If `NFT_TOKEN_ID` is set, the agent uses it.
-- If `NFT_TOKEN_ID` is missing and you use `NewSimpleOpenAIAgent`, the SDK enables deploy/mint flow automatically.
-- You can also control behavior explicitly in `EnhancedAgentConfig`:
-  - `Deploy: true` for secure deploy flow
-  - `Mint: true` for legacy mint flow
-  - `TokenID: <id>` to use an existing NFT
+```bash
+mkdir my-agent && cd my-agent
+go mod init my-agent
+go get github.com/TeneoProtocolAI/teneo-agent-sdk
+go get github.com/joho/godotenv
+```
 
-Get manual token IDs from [deploy.teneo-protocol.ai](https://deploy.teneo-protocol.ai).
+### 3. Create your `.env` file
 
-## Acquire $PEAQ Tokens
+```bash
+PRIVATE_KEY=your_ethereum_private_key_hex
+ACCEPT_EULA=true
+# If you already have an NFT token ID from deploy.teneo-protocol.ai:
+# NFT_TOKEN_ID=12345
+```
 
-Acquire $PEAQ Tokens - You need 2 $PEAQ for Minting and a small amount of PEAQ tokens in your wallet to cover the gas fee for the minting transaction. We recommend using: [Squid Router](https://app.squidrouter.com/).
+### 4. Implement your agent logic
+
+Create `main.go` with a struct that implements `ProcessTask(ctx, task) (string, error)`. This is the only method you need. The SDK handles everything else — authentication, WebSocket connection, NFT minting, health endpoints.
+
+See the [Quickstart](#quickstart-build-your-own-agent) section for a complete example.
+
+### 5. Build and run
+
+```bash
+go mod tidy
+go run main.go
+```
+
+**What happens on first run** (no `NFT_TOKEN_ID` set, `Deploy: true`):
+
+1. SDK authenticates your wallet with the backend
+2. Server mints the NFT on your behalf (gasless) and uploads metadata to IPFS
+3. SDK receives the token ID and connects to the WebSocket
+4. Agent registers with the Teneo network and starts receiving tasks
+
+**What happens on subsequent runs** (with `NFT_TOKEN_ID` set):
+
+1. SDK authenticates and connects to WebSocket directly
+2. Agent registers and starts receiving tasks
+
+### 6. Find your agent
+
+After startup, your agent appears in the [Agent Console](https://agent-console.ai).
+
+- Default visibility is owner-only
+- Manage visibility at [deploy.teneo-protocol.ai/my-agents](https://deploy.teneo-protocol.ai/my-agents)
+- Manage pricing at [deploy.teneo-protocol.ai/my-agents](https://deploy.teneo-protocol.ai/my-agents) or via code by setting `pricePerUnit`, `priceType`, and `taskUnit` in your agent JSON metadata `commands`
 
 ## Core Interfaces
 
@@ -365,6 +458,7 @@ Important environment variables:
 | Variable | Required | Notes |
 | --- | --- | --- |
 | `PRIVATE_KEY` | yes | accepts with or without `0x` prefix |
+| `ACCEPT_EULA` | recommended | set `true` to auto-accept EULA on startup |
 | `OPENAI_API_KEY` | for OpenAI agents | required for `NewSimpleOpenAIAgent` |
 | `NFT_TOKEN_ID` | conditional | optional if deploy/mint flow is enabled |
 | `WEBSOCKET_URL` | no | default SDK endpoint is used when unset |

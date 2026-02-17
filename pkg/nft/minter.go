@@ -12,6 +12,8 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -119,6 +121,10 @@ type sdkDeployResponse struct {
 	IpfsHash        string `json:"ipfs_hash"`
 	MetadataURI     string `json:"metadata_uri"`
 	AgentID         string `json:"agent_id"`
+	// Gasless fields (populated when server does the minting)
+	TokenID int64  `json:"token_id,omitempty"`
+	TxHash  string `json:"tx_hash,omitempty"`
+	Gasless bool   `json:"gasless"`
 }
 
 type sdkUpdateResponse struct {
@@ -139,8 +145,36 @@ type NFTMinter struct {
 	httpClient      *http.Client
 }
 
-// NewNFTMinter creates a new NFT minter instance
-func NewNFTMinter(backendURL, rpcEndpoint, privateKeyHex string) (*NFTMinter, error) {
+const defaultBackendURL = "https://backend.developer.chatroom.teneo-protocol.ai"
+
+// Mint reads PRIVATE_KEY from env and mints (or resumes) an agent from a JSON metadata file.
+// Returns the token ID, tx hash, and metadata URI. This is the simplest way to deploy an agent.
+func Mint(jsonFilePath string) (*MintOrResumeResult, error) {
+	privateKey := os.Getenv("PRIVATE_KEY")
+	if privateKey == "" {
+		return nil, fmt.Errorf("PRIVATE_KEY environment variable is required")
+	}
+	return MintWithKey(privateKey, jsonFilePath)
+}
+
+// MintWithKey mints (or resumes) an agent from a JSON metadata file using the provided private key.
+func MintWithKey(privateKeyHex, jsonFilePath string) (*MintOrResumeResult, error) {
+	minter, err := NewNFTMinter(privateKeyHex)
+	if err != nil {
+		return nil, err
+	}
+	return minter.MintOrResumeFromJSONFile(jsonFilePath)
+}
+
+// NewNFTMinter creates a new NFT minter. Only requires your private key.
+// Backend URL and RPC are handled automatically.
+func NewNFTMinter(privateKeyHex string) (*NFTMinter, error) {
+	return NewNFTMinterWithConfig(defaultBackendURL, "", privateKeyHex)
+}
+
+// NewNFTMinterWithConfig creates a minter with custom backend URL and RPC endpoint.
+// Most users should use NewNFTMinter instead.
+func NewNFTMinterWithConfig(backendURL, rpcEndpoint, privateKeyHex string) (*NFTMinter, error) {
 	// Parse private key
 	privateKey, err := crypto.HexToECDSA(strings.TrimPrefix(privateKeyHex, "0x"))
 	if err != nil {
@@ -157,7 +191,7 @@ func NewNFTMinter(backendURL, rpcEndpoint, privateKeyHex string) (*NFTMinter, er
 
 	// Create HTTP client with timeout
 	httpClient := &http.Client{
-		Timeout: 30 * time.Second,
+		Timeout: 120 * time.Second,
 	}
 
 	// Create Ethereum client if RPC endpoint provided
@@ -323,28 +357,23 @@ func (m *NFTMinter) MintOrResumeFromJSON(rawJSON []byte) (*MintOrResumeResult, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare deploy: %w", err)
 	}
-	m.contractAddress = common.HexToAddress(deployResp.ContractAddress)
-	chainID, ok := new(big.Int).SetString(deployResp.ChainID, 10)
-	if !ok {
-		return nil, fmt.Errorf("invalid chain ID from deploy response: %s", deployResp.ChainID)
-	}
-	m.chainID = chainID
-	tokenID, txHash, err := m.executeMintWithTxHash(deployResp.Signature)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute mint: %w", err)
+
+	// If server did gasless minting, skip client-side chain interaction
+	if deployResp.Gasless {
+		if deployResp.TokenID <= 0 {
+			return nil, fmt.Errorf("server returned gasless=true but invalid token_id=%d — this is a server error, not retrying to prevent double-mint", deployResp.TokenID)
+		}
+		fmt.Printf("   ✅ Gasless mint! Token ID: %d, Tx: %s\n", deployResp.TokenID, deployResp.TxHash)
+		return &MintOrResumeResult{
+			Status:      syncResp.Status,
+			TokenID:     uint64(deployResp.TokenID),
+			MetadataURI: deployResp.MetadataURI,
+			TxHash:      deployResp.TxHash,
+		}, nil
 	}
 
-	fmt.Println("   [Step 4/4] 🧾 Confirming mint in backend...")
-	if err := m.callSDKConfirmMint(sessionToken, config, configHash, deployResp.MetadataURI, tokenID, txHash, deployResp.ContractAddress); err != nil {
-		return nil, fmt.Errorf("failed to confirm mint in backend: %w", err)
-	}
-
-	return &MintOrResumeResult{
-		Status:      syncResp.Status,
-		TokenID:     tokenID,
-		MetadataURI: deployResp.MetadataURI,
-		TxHash:      txHash,
-	}, nil
+	// Server must perform gasless minting — client-side minting is not supported
+	return nil, fmt.Errorf("server did not perform gasless minting (gasless=false in response) — ensure your backend supports gasless minting")
 }
 
 func (m *NFTMinter) parsePayloadAndHash(rawJSON []byte) (*sdkAgentPayload, []byte, string, error) {
@@ -369,16 +398,77 @@ func (m *NFTMinter) parsePayloadAndHash(rawJSON []byte) (*sdkAgentPayload, []byt
 		config.MetadataVersion = "2.3.0"
 	}
 
-	var canonical interface{}
-	if err := json.Unmarshal(rawJSON, &canonical); err != nil {
-		return nil, nil, "", fmt.Errorf("failed to parse canonical metadata json: %w", err)
-	}
-	canonicalJSON, err := json.Marshal(canonical)
+	// Compute v3 canonical config hash (must match server's GenerateConfigHash)
+	// Uses pipe-delimited string of specific fields, excludes image/properties/metadata_version
+	configHash := m.generateCanonicalConfigHash(&config)
+
+	canonicalJSON, err := json.Marshal(config)
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("failed to canonicalize metadata json: %w", err)
+		return nil, nil, "", fmt.Errorf("failed to serialize metadata json: %w", err)
 	}
-	hash := sha256.Sum256(canonicalJSON)
-	return &config, canonicalJSON, hex.EncodeToString(hash[:]), nil
+	return &config, canonicalJSON, configHash, nil
+}
+
+// generateCanonicalConfigHash produces the v3 config hash matching the server algorithm.
+// Includes: agentId, name, description, agentType, capabilities, nlpFallback, categories, command triggers+prices.
+// Image is deliberately excluded — image changes are cosmetic, not functional.
+func (m *NFTMinter) generateCanonicalConfigHash(config *sdkAgentPayload) string {
+	// Parse capability names from JSON
+	type capEntry struct {
+		Name string `json:"name"`
+	}
+	var caps []capEntry
+	if len(config.Capabilities) > 0 {
+		_ = json.Unmarshal(config.Capabilities, &caps)
+	}
+	capNames := make([]string, len(caps))
+	for i, c := range caps {
+		capNames[i] = c.Name
+	}
+	sort.Strings(capNames)
+
+	// Parse categories from JSON
+	var categories []string
+	if len(config.Categories) > 0 {
+		_ = json.Unmarshal(config.Categories, &categories)
+	}
+	sort.Strings(categories)
+
+	// Build deterministic string
+	parts := []string{
+		"v3",
+		config.AgentID,
+		config.Name,
+		config.Description,
+		config.AgentType,
+		strings.Join(capNames, ","),
+		strconv.FormatBool(config.NlpFallback),
+		strings.Join(categories, ","),
+	}
+
+	// Parse and include commands with prices (sorted by trigger)
+	type cmdEntry struct {
+		Trigger      string  `json:"trigger"`
+		PricePerUnit float64 `json:"pricePerUnit"`
+	}
+	var cmds []cmdEntry
+	if len(config.Commands) > 0 {
+		_ = json.Unmarshal(config.Commands, &cmds)
+	}
+	if len(cmds) > 0 {
+		sort.Slice(cmds, func(i, j int) bool {
+			return cmds[i].Trigger < cmds[j].Trigger
+		})
+		cmdParts := make([]string, len(cmds))
+		for i, cmd := range cmds {
+			cmdParts[i] = cmd.Trigger + ":" + strconv.FormatFloat(cmd.PricePerUnit, 'f', -1, 64)
+		}
+		parts = append(parts, strings.Join(cmdParts, ","))
+	}
+
+	data := strings.Join(parts, "|")
+	hash := sha256.Sum256([]byte(data))
+	return hex.EncodeToString(hash[:])
 }
 
 func (m *NFTMinter) syncAgentState(agentID, configHash string) (*sdkSyncResponse, error) {
@@ -476,7 +566,7 @@ func (m *NFTMinter) callSDKDeploy(sessionToken string, config *sdkAgentPayload, 
 	if err := m.postJSON("/api/sdk/agent/deploy", req, headers, &resp); err != nil {
 		return nil, err
 	}
-	if resp.Signature == "" {
+	if resp.Signature == "" && !resp.Gasless {
 		return nil, fmt.Errorf("deploy response missing signature")
 	}
 	return &resp, nil
