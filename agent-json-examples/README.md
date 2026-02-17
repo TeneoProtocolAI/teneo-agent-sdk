@@ -4,7 +4,7 @@ Example metadata files for minting Teneo agents via `nft.NewNFTMinter(...).MintO
 
 ## Examples
 
-- **`headless-agent-template.json`** — Minimal starting template
+- **`gasless-agent-template.json`** — Minimal starting template
 - **`example-1-agent.json`** — Command-based location intelligence agent
 - **`example-2-agents.json`** — Command-based social intelligence agent
 - **`example-3-nlp-agent.json`** — NLP research agent with `nlp_fallback: true`

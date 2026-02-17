@@ -87,7 +87,7 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 			derived = strings.Replace(derived, "ws://", "http://", 1)
 			config.BackendURL = derived
 		} else {
-			config.BackendURL = "http://localhost:8080"
+			config.BackendURL = "https://backend.developer.chatroom.teneo-protocol.ai"
 		}
 	}
 
@@ -147,17 +147,14 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 		os.Setenv("NFT_TOKEN_ID", fmt.Sprintf("%d", result.TokenID))
 		config.Config.NFTTokenID = fmt.Sprintf("%d", result.TokenID)
 	} else if config.Mint {
-		// Use legacy mint flow (no database persistence)
-		// Create NFT minter
-		minter, err := nft.NewNFTMinter(config.BackendURL, config.RPCEndpoint, config.Config.PrivateKey)
+		// Legacy mint flag — redirect to gasless deploy flow
+		log.Printf("🎨 Minting NFT for agent (gasless): %s", config.Config.Name)
+		minter, err := nft.NewNFTMinter(config.Config.PrivateKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create NFT minter: %w", err)
 		}
 
-		// Generate agent ID from name
 		agentID := generateAgentID(config.Config.Name)
-
-		// Prepare metadata
 		metadata := nft.AgentMetadata{
 			Name:         config.Config.Name,
 			Description:  config.Config.Description,
@@ -166,23 +163,21 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 			AgentID:      agentID,
 		}
 
-		log.Printf("🎨 Minting NFT for agent (legacy flow): %s", config.Config.Name)
+		metadataJSON, err := json.Marshal(metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal metadata: %w", err)
+		}
 
-		// Mint NFT - this will:
-		// 1. Send metadata to backend (backend uploads to IPFS)
-		// 2. Get signature from backend
-		// 3. Execute on-chain mint transaction
-		tokenID, err := minter.MintAgent(metadata)
+		result, err := minter.MintOrResumeFromJSON(metadataJSON)
 		if err != nil {
 			return nil, fmt.Errorf("failed to mint NFT: %w", err)
 		}
 
-		config.TokenID = tokenID
-		log.Printf("✅ Successfully minted NFT with token ID: %d", tokenID)
+		config.TokenID = result.TokenID
+		log.Printf("✅ Successfully minted NFT with token ID: %d", result.TokenID)
 
-		// Store token ID in environment and config for future use
-		os.Setenv("NFT_TOKEN_ID", fmt.Sprintf("%d", tokenID))
-		config.Config.NFTTokenID = fmt.Sprintf("%d", tokenID)
+		os.Setenv("NFT_TOKEN_ID", fmt.Sprintf("%d", result.TokenID))
+		config.Config.NFTTokenID = fmt.Sprintf("%d", result.TokenID)
 	} else {
 		// Verify TokenID is set
 		if config.TokenID == 0 {
@@ -210,7 +205,7 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 		log.Printf("📋 Using existing NFT token ID: %d with metadata hash: %s", config.TokenID, hash)
 
 		// Send metadata hash to backend
-		minter, err := nft.NewNFTMinter(config.BackendURL, config.RPCEndpoint, config.Config.PrivateKey)
+		minter, err := nft.NewNFTMinterWithConfig(config.BackendURL, config.RPCEndpoint, config.Config.PrivateKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create NFT minter: %w", err)
 		}

@@ -53,7 +53,6 @@ type DeployResult struct {
 	MetadataURI     string `json:"metadata_uri"`
 	AgentID         string `json:"agent_id"`
 	AlreadyMinted   bool   `json:"already_minted"`
-	DatabaseID      string `json:"database_id,omitempty"`
 }
 
 // Deployer handles the full agent deployment flow
@@ -73,7 +72,7 @@ func NewDeployer(config *DeployConfig) (*Deployer, error) {
 		if backendURL := os.Getenv("BACKEND_URL"); backendURL != "" {
 			config.BackendURL = backendURL
 		} else {
-			config.BackendURL = "http://localhost:8080"
+			config.BackendURL = "https://backend.developer.chatroom.teneo-protocol.ai"
 		}
 	}
 
@@ -215,7 +214,7 @@ func (d *Deployer) fullDeploy(ctx context.Context) (*DeployResult, error) {
 
 	// Step 1: Authenticate
 	log.Println("[Step 1/5] 🔐 Authenticating with backend...")
-	sessionToken, sessionExpiry, err := d.authenticate(ctx)
+	sessionToken, _, err := d.authenticate(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("authentication failed: %w", err)
 	}
@@ -234,96 +233,43 @@ func (d *Deployer) fullDeploy(ctx context.Context) (*DeployResult, error) {
 	}
 	log.Printf("   ✅ Contract: %s (Chain ID: %s)", deployResp.ContractAddress, deployResp.ChainID)
 
-	// Use RPC URL from backend response, fallback to config/env/default
-	rpcEndpoint := deployResp.RPCURL
-	if rpcEndpoint == "" {
-		rpcEndpoint = d.config.RPCEndpoint
+	// If server performed gasless minting, everything is done — skip steps 3-4
+	if deployResp.Gasless && deployResp.TokenID <= 0 {
+		return nil, fmt.Errorf("server returned gasless=true but invalid token_id=%d — this is a server error, not retrying to prevent double-mint", deployResp.TokenID)
 	}
+	if deployResp.Gasless {
+		log.Printf("   ✅ Gasless mint! Token ID: %d, Tx: %s", deployResp.TokenID, deployResp.TxHash)
 
-	// Save state as pending
-	state := &DeployState{
-		AgentID:         d.config.AgentID,
-		AgentName:       d.config.AgentName,
-		WalletAddress:   d.authenticator.GetAddress(),
-		Status:          StatusPending,
-		SessionToken:    sessionToken,
-		SessionExpiry:   sessionExpiry,
-		ContractAddress: deployResp.ContractAddress,
-		RPCURL:          rpcEndpoint,
-		ConfigHash:      deployResp.ConfigHash,
-		ChainID:         deployResp.ChainID,
-		Nonce:           deployResp.Nonce,
-		Signature:       deployResp.Signature,
-		CreatedAt:       time.Now().UTC(),
-	}
-	if err := d.stateManager.Save(state); err != nil {
-		log.Printf("⚠️ Warning: Failed to save state: %v", err)
-	}
-
-	// Step 3: Execute on-chain mint
-	log.Println("[Step 3/5] ⛓️  Executing on-chain mint transaction...")
-	chainClient, err := NewChainClient(rpcEndpoint, deployResp.ContractAddress, deployResp.ChainID, d.config.PrivateKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create chain client: %w", err)
-	}
-	defer chainClient.Close()
-
-	mintResult, err := chainClient.ExecuteMint(ctx, deployResp.Signature, d.config.MintPrice)
-	if err != nil {
-		return nil, fmt.Errorf("on-chain mint failed: %w", err)
-	}
-	log.Printf("   ✅ Mint successful! Token ID: %d, Tx: %s", mintResult.TokenID, mintResult.TxHash)
-
-	// Update state to minted
-	state.TokenID = mintResult.TokenID
-	state.TxHash = mintResult.TxHash
-	state.Status = StatusMinted
-	if err := d.stateManager.Save(state); err != nil {
-		log.Printf("⚠️ Warning: Failed to save state after mint: %v", err)
-	}
-
-	// Step 4: Confirm mint with backend
-	log.Println("[Step 4/5] 💾 Confirming with backend (saving to database)...")
-	confirmResp, err := d.confirmMint(ctx, sessionToken, state)
-	if err != nil {
-		// If session expired, re-authenticate and retry
-		if errors.Is(err, ErrSessionExpired) {
-			log.Println("   ⚠️ Session expired, re-authenticating...")
-			sessionToken, sessionExpiry, err = d.authenticate(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("re-authentication failed: %w", err)
-			}
-			state.SessionToken = sessionToken
-			state.SessionExpiry = sessionExpiry
-			d.stateManager.Save(state)
-
-			confirmResp, err = d.confirmMint(ctx, sessionToken, state)
-			if err != nil {
-				return nil, fmt.Errorf("confirm-mint failed after re-auth: %w", err)
-			}
-		} else {
-			return nil, fmt.Errorf("confirm-mint failed: %w", err)
+		state := &DeployState{
+			AgentID:         d.config.AgentID,
+			AgentName:       d.config.AgentName,
+			WalletAddress:   d.authenticator.GetAddress(),
+			Status:          StatusConfirmed,
+			ContractAddress: deployResp.ContractAddress,
+			ConfigHash:      deployResp.ConfigHash,
+			ChainID:         deployResp.ChainID,
+			TokenID:         uint64(deployResp.TokenID),
+			TxHash:          deployResp.TxHash,
+			CreatedAt:       time.Now().UTC(),
 		}
+		if err := d.stateManager.Save(state); err != nil {
+			log.Printf("⚠️ Warning: Failed to save state: %v", err)
+		}
+
+		log.Println("[Step 5/5] ✅ Deployment complete (gasless)!")
+
+		return &DeployResult{
+			TokenID:         uint64(deployResp.TokenID),
+			TxHash:          deployResp.TxHash,
+			ContractAddress: deployResp.ContractAddress,
+			MetadataURI:     deployResp.MetadataURI,
+			AgentID:         d.config.AgentID,
+			AlreadyMinted:   false,
+		}, nil
 	}
-	log.Printf("   ✅ Agent saved to database: %s", confirmResp.ID)
 
-	// Update state to confirmed
-	state.Status = StatusConfirmed
-	if err := d.stateManager.Save(state); err != nil {
-		log.Printf("⚠️ Warning: Failed to save final state: %v", err)
-	}
-
-	log.Println("[Step 5/5] ✅ Deployment complete!")
-
-	return &DeployResult{
-		TokenID:         mintResult.TokenID,
-		TxHash:          mintResult.TxHash,
-		ContractAddress: deployResp.ContractAddress,
-		MetadataURI:     confirmResp.MetadataURI,
-		AgentID:         d.config.AgentID,
-		AlreadyMinted:   false,
-		DatabaseID:      confirmResp.ID,
-	}, nil
+	// Server must perform gasless minting — client-side minting is not supported
+	return nil, fmt.Errorf("server did not perform gasless minting (gasless=false in response) — ensure your backend supports gasless minting")
 }
 
 // confirmOnly handles the case where we need to confirm an already-minted NFT
@@ -374,7 +320,6 @@ func (d *Deployer) confirmOnly(ctx context.Context, state *DeployState) (*Deploy
 		MetadataURI:     confirmResp.MetadataURI,
 		AgentID:         state.AgentID,
 		AlreadyMinted:   true,
-		DatabaseID:      confirmResp.ID,
 	}, nil
 }
 
@@ -460,9 +405,9 @@ func (d *Deployer) validateConfig() error {
 		return fmt.Errorf("agent_type must be 'command', 'nlp', or 'mcp'")
 	}
 
-	if d.config.RPCEndpoint == "" {
-		return fmt.Errorf("rpc_endpoint is required")
-	}
+	// RPCEndpoint is only needed for client-side minting (non-gasless).
+	// If the server supports gasless minting, the SDK never connects to RPC.
+	// Validation is deferred to runtime if client-side minting is needed.
 
 	return nil
 }

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"os"
 	"regexp"
 	"sort"
@@ -57,7 +56,7 @@ type Command struct {
 // MintResult is defined in chain.go with fields:
 // TokenID, TxHash, AgentID, Status, ContractAddress, Message
 
-// Minter handles the headless minting flow
+// Minter handles the gasless minting flow
 type Minter struct {
 	config       *MintConfig
 	httpClient   *HTTPClient
@@ -438,86 +437,25 @@ func (m *Minter) executeMint(ctx context.Context, config *AgentConfig, authentic
 		log.Printf("✅ Deploy prepared, config hash: %s", deployResp.ConfigHash)
 	}
 
-	// Use RPC URL from backend response, fallback to config/env/default
-	rpcEndpoint := deployResp.RPCURL
-	if rpcEndpoint == "" {
-		rpcEndpoint = m.config.RPCEndpoint
+	// If server performed gasless minting, everything is done
+	if deployResp.Gasless && deployResp.TokenID <= 0 {
+		return nil, fmt.Errorf("server returned gasless=true but invalid token_id=%d — this is a server error, not retrying to prevent double-mint", deployResp.TokenID)
+	}
+	if deployResp.Gasless {
+		log.Printf("✅ Gasless mint! Token ID: %d, Tx: %s", deployResp.TokenID, deployResp.TxHash)
+		m.walClient.Delete(config.AgentID)
+		return &MintResult{
+			TokenID:         uint64(deployResp.TokenID),
+			AgentID:         config.AgentID,
+			Status:          MintStatusMinted,
+			ContractAddress: deployResp.ContractAddress,
+			TxHash:          deployResp.TxHash,
+			Message:         "Agent minted successfully (gasless)",
+		}, nil
 	}
 
-	// Save WAL before minting
-	wal := &WALEntry{
-		AgentID:         config.AgentID,
-		Wallet:          authenticator.GetAddress(),
-		State:           WALStateMinting,
-		ContractAddress: deployResp.ContractAddress,
-		ChainID:         deployResp.ChainID,
-		RPCURL:          rpcEndpoint,
-		Signature:       deployResp.Signature,
-		ConfigHash:      configHash,
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
-	}
-
-	if err := m.walClient.Save(wal); err != nil {
-		log.Printf("⚠️ Warning: Failed to save WAL: %v", err)
-	}
-
-	// Execute on-chain mint
-	log.Println("⛓️ Executing on-chain mint...")
-	chainClient, err := NewChainClient(rpcEndpoint, deployResp.ContractAddress, deployResp.ChainID, m.config.PrivateKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create chain client: %w", err)
-	}
-	defer chainClient.Close()
-
-	mintResult, err := chainClient.ExecuteMint(ctx, deployResp.Signature, nil)
-	if err != nil {
-		return nil, fmt.Errorf("on-chain mint failed: %w", err)
-	}
-
-	log.Printf("✅ Mint successful! Token ID: %d, Tx: %s", mintResult.TokenID, mintResult.TxHash)
-
-	// Update WAL
-	wal.State = WALStateConfirming
-	wal.PendingTxHash = mintResult.TxHash
-	wal.PendingTokenID = &mintResult.TokenID
-	wal.UpdatedAt = time.Now()
-	m.walClient.Save(wal)
-
-	// Confirm with backend (IPFS upload + tokenURI update happens server-side)
-	log.Println("💾 Confirming with backend...")
-	
-	// Validate token ID fits in int64 before conversion
-	if mintResult.TokenID > math.MaxInt64 {
-		return nil, fmt.Errorf("token ID %d exceeds int64 maximum", mintResult.TokenID)
-	}
-	
-	confirmReq := &ConfirmMintRequest{
-		AgentID:       config.AgentID,
-		WalletAddress: authenticator.GetAddress(),
-		TokenID:       int64(mintResult.TokenID),
-		TxHash:        mintResult.TxHash,
-		ConfigHash:    configHash,
-	}
-
-	_, err = m.httpClient.ConfirmMint(sessionToken, confirmReq)
-	if err != nil {
-		log.Printf("⚠️ Warning: Confirm-mint failed: %v (agent minted, will reconcile later)", err)
-	} else {
-		log.Println("✅ Agent confirmed in database!")
-	}
-
-	// Clean up WAL
-	m.walClient.Delete(config.AgentID)
-
-	return &MintResult{
-		TokenID:         mintResult.TokenID,
-		AgentID:         config.AgentID,
-		Status:          MintStatusMinted,
-		ContractAddress: deployResp.ContractAddress,
-		TxHash:          mintResult.TxHash,
-		Message:         "Agent minted successfully",
-	}, nil
+	// Server must perform gasless minting — client-side minting is not supported
+	return nil, fmt.Errorf("server did not perform gasless minting (gasless=false in response) — ensure your backend supports gasless minting")
 }
 
 // executeUpdate handles automatic metadata re-upload when config changes
