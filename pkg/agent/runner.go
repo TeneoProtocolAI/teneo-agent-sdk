@@ -473,10 +473,15 @@ func (a *EnhancedAgent) Run() error {
 	}
 
 	if a.submitForReviewOnRun {
-		// Wait briefly for authentication and registration to complete
-		time.Sleep(3 * time.Second)
-		if err := a.SubmitForReview(); err != nil {
-			log.Printf("⚠️ Failed to submit agent for review: %v", err)
+		// Wait for registration to complete before submitting for review
+		select {
+		case <-a.protocolHandler.Registered():
+			if err := a.SubmitForReview(); err != nil {
+				log.Printf("⚠️ Failed to submit agent for review: %v", err)
+			}
+		case <-time.After(30 * time.Second):
+			log.Printf("⚠️ Timed out waiting for registration — skipping submit for review")
+		case <-a.ctx.Done():
 		}
 	}
 
