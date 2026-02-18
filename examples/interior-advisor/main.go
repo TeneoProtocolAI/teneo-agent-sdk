@@ -23,7 +23,7 @@ func main() {
 		Temperature: 0.7,
 		MaxTokens:   1500,
 		Mint:        true,
-		Public:      true,
+		SubmitForReview: true,
 
 		SystemPrompt: `You are an expert interior architecture advisor specializing in apartment planning and furnishing.
 

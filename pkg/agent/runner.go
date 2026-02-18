@@ -1,14 +1,11 @@
 package agent
 
 import (
-	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -37,7 +34,7 @@ type EnhancedAgent struct {
 	healthServer    *health.Server
 	agentCache      cache.AgentCache
 	backendURL      string
-	setPublicOnRun  bool
+	submitForReviewOnRun bool
 	running         bool
 	startTime       time.Time
 	mu              sync.RWMutex
@@ -62,6 +59,10 @@ type EnhancedAgentConfig struct {
 	// Backend Configuration
 	BackendURL  string // Default from env or "http://localhost:8080"
 	RPCEndpoint string // Ethereum RPC endpoint
+
+	// Optional: Submit agent for public visibility review after startup (defaults to false).
+	// The agent goes through a review process (up to 72 hours) before becoming publicly visible.
+	SubmitForReview bool
 }
 
 // NewEnhancedAgent creates a new enhanced agent with network capabilities
@@ -232,11 +233,12 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	agent := &EnhancedAgent{
-		config:       config.Config,
-		agentHandler: config.AgentHandler,
-		backendURL:   config.BackendURL,
-		ctx:          ctx,
-		cancel:       cancel,
+		config:               config.Config,
+		agentHandler:         config.AgentHandler,
+		backendURL:           config.BackendURL,
+		submitForReviewOnRun: config.SubmitForReview,
+		ctx:                  ctx,
+		cancel:               cancel,
 	}
 
 	// Initialize authentication manager
@@ -470,11 +472,11 @@ func (a *EnhancedAgent) Run() error {
 		return err
 	}
 
-	if a.setPublicOnRun {
+	if a.submitForReviewOnRun {
 		// Wait briefly for authentication and registration to complete
 		time.Sleep(3 * time.Second)
-		if err := a.SetVisibility(true); err != nil {
-			log.Printf("⚠️ Failed to set agent to public: %v", err)
+		if err := a.SubmitForReview(); err != nil {
+			log.Printf("⚠️ Failed to submit agent for review: %v", err)
 		}
 	}
 
@@ -488,45 +490,36 @@ func (a *EnhancedAgent) Run() error {
 	return a.Stop()
 }
 
-// SetVisibility updates the agent's public/private visibility on the Teneo network.
-// Requires the agent to have been deployed and connected at least once.
-func (a *EnhancedAgent) SetVisibility(public bool) error {
-	agentID := generateAgentID(a.config.Name)
-	walletAddress := a.authManager.GetAddress()
-
-	reqBody, err := json.Marshal(map[string]interface{}{
-		"is_public":      public,
-		"creator_wallet": walletAddress,
-	})
+// SubmitForReview submits the agent for public visibility review on the Teneo network.
+// The agent must have been deployed, connected at least once, and be currently online.
+// Review can take up to 72 hours. The agent must stay online during review.
+func (a *EnhancedAgent) SubmitForReview() error {
+	tokenID, err := a.getTokenID()
 	if err != nil {
-		return fmt.Errorf("failed to marshal visibility request: %w", err)
+		return err
 	}
+	return SubmitForReview(a.backendURL, a.config.Name, a.authManager.GetAddress(), tokenID)
+}
 
-	url := fmt.Sprintf("%s/api/agents/%s/visibility", a.backendURL, agentID)
-	resp, err := http.Post(url, "application/json", bytes.NewReader(reqBody))
+// WithdrawPublic withdraws a public agent back to private visibility.
+// Only works on agents that are currently public.
+func (a *EnhancedAgent) WithdrawPublic() error {
+	tokenID, err := a.getTokenID()
 	if err != nil {
-		return fmt.Errorf("failed to send visibility request: %w", err)
+		return err
 	}
-	defer resp.Body.Close()
+	return WithdrawPublic(a.backendURL, a.config.Name, a.authManager.GetAddress(), tokenID)
+}
 
-	body, _ := io.ReadAll(resp.Body)
-
-	if resp.StatusCode != http.StatusOK {
-		var errResp struct {
-			Error string `json:"error"`
-		}
-		if json.Unmarshal(body, &errResp) == nil && errResp.Error != "" {
-			return fmt.Errorf("visibility update failed: %s", errResp.Error)
-		}
-		return fmt.Errorf("visibility update failed with status %d", resp.StatusCode)
+func (a *EnhancedAgent) getTokenID() (uint64, error) {
+	if a.config.NFTTokenID == "" {
+		return 0, fmt.Errorf("NFT token ID not set — agent must be deployed first")
 	}
-
-	status := "private"
-	if public {
-		status = "public"
+	var tokenID uint64
+	if _, err := fmt.Sscanf(a.config.NFTTokenID, "%d", &tokenID); err != nil {
+		return 0, fmt.Errorf("invalid NFT token ID %q: %w", a.config.NFTTokenID, err)
 	}
-	log.Printf("✅ Agent visibility set to %s", status)
-	return nil
+	return tokenID, nil
 }
 
 // startPeriodicTasks starts periodic maintenance tasks
