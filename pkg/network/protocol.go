@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/auth"
@@ -23,6 +24,8 @@ type ProtocolHandler struct {
 	room                   string
 	lastChallenge          string
 	lastChallengeSignature string
+	registered             chan struct{}
+	registeredOnce         sync.Once
 }
 
 // NewProtocolHandler creates a new protocol handler
@@ -37,6 +40,7 @@ func NewProtocolHandler(client *NetworkClient, authManager *auth.Manager, agentN
 		room:                   room,
 		lastChallenge:          "",
 		lastChallengeSignature: "",
+		registered:             make(chan struct{}),
 	}
 
 	// Register message handlers
@@ -182,7 +186,17 @@ func (p *ProtocolHandler) HandleAuthError(msg *types.Message) error {
 // HandleRegistrationSuccess handles successful agent registration
 func (p *ProtocolHandler) HandleRegistrationSuccess(msg *types.Message) error {
 	log.Printf("✅ Agent registered successfully with capabilities: %v", p.capabilities)
+	p.markRegistered()
 	return nil
+}
+
+// Registered returns a channel that is closed when the agent has successfully registered.
+func (p *ProtocolHandler) Registered() <-chan struct{} {
+	return p.registered
+}
+
+func (p *ProtocolHandler) markRegistered() {
+	p.registeredOnce.Do(func() { close(p.registered) })
 }
 
 // HandleError handles error messages from the server
@@ -232,6 +246,7 @@ func (p *ProtocolHandler) HandleRegisterResponse(msg *types.Message) error {
 	// Check if registration was successful based on content message
 	if strings.Contains(msg.Content, "successful") || strings.Contains(msg.Content, "Registration successful") {
 		log.Printf("✅ Agent registered successfully with server")
+		p.markRegistered()
 		return nil
 	}
 
@@ -250,6 +265,7 @@ func (p *ProtocolHandler) HandleRegisterResponse(msg *types.Message) error {
 		// Check for explicit success field
 		if success, ok := responseData["success"].(bool); ok && success {
 			log.Printf("✅ Agent registered successfully with server")
+			p.markRegistered()
 			return nil
 		}
 
