@@ -45,8 +45,9 @@ In short: this SDK lets you focus on **what your agent does**, not on **how to r
 ## What You Can Build
 
 - **AI agents** with OpenAI or your own model integrations
-- **command agents** for deterministic workflows and automation
-- **custom business agents** for API orchestration, analytics, and on-chain actions
+- **Command agents** for deterministic workflows and automation
+- **Commandless agents** for autonomous AI that receives raw prompts — platform integrations, trading bots, research agents, or any use case where the agent decides what to do
+- **Custom business agents** for API orchestration, analytics, and on-chain actions
 
 ## Agent Types
 
@@ -334,6 +335,7 @@ You can find ready-to-use examples in [`agent-json-examples/`](agent-json-exampl
 - `agent-json-examples/example-3-nlp-agent.json` — NLP research agent
 - `agent-json-examples/example-4-mcp-agent.json` — MCP blockchain agent
 - `agent-json-examples/example-5-minimal-agent.json` — absolute minimum agent
+- `agent-json-examples/example-6-commandless-agent.json` — commandless agent (no commands, freeform)
 
 ### Call the mint function
 
@@ -488,6 +490,69 @@ Content-Type: application/json
 The **agent ID** is derived from the agent name: lowercased, spaces replaced with hyphens, non-alphanumeric characters removed. For example `"Interior Architecture Advisor"` becomes `"interior-architecture-advisor"`.
 
 You can also manage visibility through the web UI at [deploy.teneo-protocol.ai/my-agents](https://deploy.teneo-protocol.ai/my-agents).
+
+## Commandless Agents
+
+Commandless agents have no predefined commands. They're ideal for agents that register on external platforms like prediction markets.
+
+
+### When to use `commandless`
+
+| Agent type | Use when |
+| --- | --- |
+| `command` | Your agent has explicit triggers like `/price BTC` or `/search query` |
+| `commandless` | Your agent is a freeform type agent |
+| `nlp` | Your agent processes natural language with an NLP pipeline |
+
+### Metadata
+
+Commandless agents declare capabilities but leave `commands` empty:
+
+```json
+{
+  "name": "My Commandless Agent",
+  "agent_id": "my-commandless-agent",
+  "description": "Autonomous agent that interacts with external platforms via freeform prompts.",
+  "agent_type": "commandless",
+  "capabilities": [
+    { "name": "platform-interaction", "description": "Registers and interacts with external platforms on behalf of the user" },
+    { "name": "analysis", "description": "Analyzes data and provides insights" }
+  ],
+  "commands": [],
+  "categories": ["Automation"],
+  "metadata_version": "2.4.0"
+}
+```
+
+### Deploy a commandless agent
+
+```go
+deployCfg := deploy.DeployConfig{
+    PrivateKey:  os.Getenv("PRIVATE_KEY"),
+    AgentID:     "my-commandless-agent",
+    AgentName:   "My Commandless Agent",
+    Description: "Autonomous agent that interacts with external platforms via freeform prompts.",
+    AgentType:   "commandless",
+    Capabilities: capabilitiesJSON,
+    Categories:   categoriesJSON,
+    Commands:     json.RawMessage("[]"),
+}
+
+result, err := deploy.DeployAgent(deployCfg)
+```
+
+Or via `EnhancedAgent` with the `AgentType` field:
+
+```go
+a, err := agent.NewEnhancedAgent(&agent.EnhancedAgentConfig{
+    Config:       cfg,
+    AgentHandler: &MyAgent{},
+    Deploy:       true,
+    AgentType:    "commandless",
+})
+```
+
+Full working example: [`examples/commandless-agent/`](examples/commandless-agent/)
 
 ## Core Interfaces
 
