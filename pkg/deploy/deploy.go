@@ -400,9 +400,9 @@ func (d *Deployer) validateConfig() error {
 	}
 
 	// Validate agent type
-	validTypes := map[string]bool{"command": true, "nlp": true, "mcp": true}
+	validTypes := map[string]bool{"command": true, "nlp": true, "mcp": true, "commandless": true}
 	if !validTypes[d.config.AgentType] {
-		return fmt.Errorf("agent_type must be 'command', 'nlp', or 'mcp'")
+		return fmt.Errorf("agent_type must be 'command', 'nlp', 'mcp', or 'commandless'")
 	}
 
 	// RPCEndpoint is only needed for client-side minting (non-gasless).

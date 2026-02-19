@@ -54,6 +54,7 @@ type EnhancedAgentConfig struct {
 
 	// Deploy-specific options
 	AgentID       string // Required for Deploy, auto-generated from name if empty
+	AgentType     string // Agent type: "command", "nlp", "mcp", "commandless" (default: "command")
 	StateFilePath string // Path to state file for Deploy (default: .teneo-deploy-state.json)
 
 	// Backend Configuration
@@ -116,6 +117,12 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 			return nil, fmt.Errorf("failed to build capabilities JSON: %w", err)
 		}
 
+		// Determine agent type (default to "command" for backwards compatibility)
+		agentType := config.AgentType
+		if agentType == "" {
+			agentType = "command"
+		}
+
 		// Create deploy configuration
 		deployCfg := deploy.DeployConfig{
 			BackendURL:      config.BackendURL,
@@ -125,7 +132,7 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 			AgentName:       config.Config.Name,
 			Description:     config.Config.Description,
 			Image:           config.Config.Image,
-			AgentType:       "command", // Default to command type
+			AgentType:       agentType,
 			Capabilities:    capabilitiesJSON,
 			StateFilePath:   config.StateFilePath,
 			MetadataVersion: "2.3.0",

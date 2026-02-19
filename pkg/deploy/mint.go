@@ -262,9 +262,9 @@ func (m *Minter) validateConfig(config *AgentConfig) error {
 	}
 
 	// AgentType validation
-	validTypes := map[string]bool{"command": true, "nlp": true, "mcp": true}
+	validTypes := map[string]bool{"command": true, "nlp": true, "mcp": true, "commandless": true}
 	if !validTypes[config.AgentType] {
-		return fmt.Errorf("agentType must be 'command', 'nlp', or 'mcp'")
+		return fmt.Errorf("agentType must be 'command', 'nlp', 'mcp', or 'commandless'")
 	}
 
 	// Categories validation
