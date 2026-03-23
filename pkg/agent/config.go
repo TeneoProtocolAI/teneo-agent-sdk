@@ -27,6 +27,10 @@ type Config struct {
 	// strings are used with empty descriptions for backward compatibility.
 	CapabilityDetails []types.Capability `json:"capability_details,omitempty"`
 
+	// Profile metadata (optional, sent to backend during deploy/update)
+	ShortDescription string `json:"short_description,omitempty"` // Brief one-line summary
+	TutorialURL      string `json:"tutorial_url,omitempty"`      // YouTube/video tutorial URL
+
 	// Interface configuration
 	InterfaceType  string `json:"interface_type"`
 	ResponseFormat string `json:"response_format"`

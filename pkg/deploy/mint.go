@@ -23,19 +23,28 @@ var htmlTagPattern = regexp.MustCompile(`<[^>]*>`)
 // The actual limit is fetched from backend via schema endpoint
 const DefaultMaxJSONSize = 24 * 1024
 
+// FAQItem represents a question/answer pair for the agent's profile.
+type FAQItem struct {
+	Question string `json:"question"`
+	Answer   string `json:"answer"`
+}
+
 // AgentConfig represents the agent configuration from JSON file
 type AgentConfig struct {
-	Name            string       `json:"name"`
-	AgentID         string       `json:"agentId"`
-	Description     string       `json:"description"`
-	Image           string       `json:"image,omitempty"`
-	AgentType       string       `json:"agentType"`
-	Categories      []string     `json:"categories"`
-	Capabilities    []Capability `json:"capabilities"`
-	Commands        []Command    `json:"commands,omitempty"`
-	NlpFallback     bool         `json:"nlpFallback"`
-	McpManifest     string       `json:"mcpManifest,omitempty"`
-	MetadataVersion string       `json:"metadata_version,omitempty"`
+	Name             string       `json:"name"`
+	AgentID          string       `json:"agentId"`
+	Description      string       `json:"description"`
+	ShortDescription string       `json:"shortDescription,omitempty"`
+	Image            string       `json:"image,omitempty"`
+	AgentType        string       `json:"agentType"`
+	Categories       []string     `json:"categories"`
+	Capabilities     []Capability `json:"capabilities"`
+	Commands         []Command    `json:"commands,omitempty"`
+	NlpFallback      bool         `json:"nlpFallback"`
+	McpManifest      string       `json:"mcpManifest,omitempty"`
+	MetadataVersion  string       `json:"metadata_version,omitempty"`
+	TutorialURL      string       `json:"tutorialUrl,omitempty"`
+	FAQItems         []FAQItem    `json:"faqItems,omitempty"`
 }
 
 // Capability represents an agent capability
@@ -442,20 +451,24 @@ func (m *Minter) executeMint(ctx context.Context, config *AgentConfig, authentic
 	capabilitiesJSON, _ := json.Marshal(config.Capabilities)
 	commandsJSON, _ := json.Marshal(config.Commands)
 	categoriesJSON, _ := json.Marshal(config.Categories)
+	faqItemsJSON, _ := json.Marshal(config.FAQItems)
 
 	deployReq := &DeployRequest{
-		WalletAddress:   authenticator.GetAddress(),
-		AgentID:         config.AgentID,
-		AgentName:       config.Name,
-		Description:     config.Description,
-		Image:           config.Image,
-		AgentType:       config.AgentType,
-		Capabilities:    capabilitiesJSON,
-		Commands:        commandsJSON,
-		NlpFallback:     config.NlpFallback,
-		Categories:      categoriesJSON,
-		ConfigHash:      configHash,
-		MetadataVersion: config.MetadataVersion,
+		WalletAddress:    authenticator.GetAddress(),
+		AgentID:          config.AgentID,
+		AgentName:        config.Name,
+		Description:      config.Description,
+		Image:            config.Image,
+		AgentType:        config.AgentType,
+		Capabilities:     capabilitiesJSON,
+		Commands:         commandsJSON,
+		NlpFallback:      config.NlpFallback,
+		Categories:       categoriesJSON,
+		ShortDescription: config.ShortDescription,
+		TutorialURL:      config.TutorialURL,
+		FAQItems:         faqItemsJSON,
+		ConfigHash:       configHash,
+		MetadataVersion:  config.MetadataVersion,
 	}
 
 	// Call deploy endpoint
@@ -515,20 +528,24 @@ func (m *Minter) executeUpdate(ctx context.Context, config *AgentConfig, configH
 	capabilitiesJSON, _ := json.Marshal(config.Capabilities)
 	commandsJSON, _ := json.Marshal(config.Commands)
 	categoriesJSON, _ := json.Marshal(config.Categories)
+	faqItemsJSON, _ := json.Marshal(config.FAQItems)
 
 	updateReq := &UpdateMetadataRequest{
-		WalletAddress:   authenticator.GetAddress(),
-		AgentID:         config.AgentID,
-		AgentName:       config.Name,
-		Description:     config.Description,
-		Image:           config.Image,
-		AgentType:       config.AgentType,
-		Capabilities:    capabilitiesJSON,
-		Commands:        commandsJSON,
-		NlpFallback:     config.NlpFallback,
-		Categories:      categoriesJSON,
-		ConfigHash:      configHash,
-		MetadataVersion: config.MetadataVersion,
+		WalletAddress:    authenticator.GetAddress(),
+		AgentID:          config.AgentID,
+		AgentName:        config.Name,
+		Description:      config.Description,
+		Image:            config.Image,
+		AgentType:        config.AgentType,
+		Capabilities:     capabilitiesJSON,
+		Commands:         commandsJSON,
+		NlpFallback:      config.NlpFallback,
+		Categories:       categoriesJSON,
+		ShortDescription: config.ShortDescription,
+		TutorialURL:      config.TutorialURL,
+		FAQItems:         faqItemsJSON,
+		ConfigHash:       configHash,
+		MetadataVersion:  config.MetadataVersion,
 	}
 
 	// 4. Call update endpoint
