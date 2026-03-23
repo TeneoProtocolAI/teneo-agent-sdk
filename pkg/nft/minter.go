@@ -17,6 +17,8 @@ import (
 	"strings"
 	"time"
 
+	sdktypes "github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/types"
+
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -29,12 +31,12 @@ import (
 
 // AgentMetadata represents the metadata for an agent NFT
 type AgentMetadata struct {
-	Name         string                 `json:"name"`
-	Description  string                 `json:"description"`
-	Image        string                 `json:"image"`
-	AgentID      string                 `json:"agent_id"`
-	Capabilities []string               `json:"capabilities"`
-	Properties   map[string]interface{} `json:"properties,omitempty"`
+	Name         string                        `json:"name"`
+	Description  string                        `json:"description"`
+	Image        string                        `json:"image"`
+	AgentID      string                        `json:"agent_id"`
+	Capabilities []sdktypes.Capability            `json:"capabilities"`
+	Properties   map[string]interface{}        `json:"properties,omitempty"`
 }
 
 // IPFSUploadResponse represents the response from IPFS upload
@@ -1141,7 +1143,7 @@ func GenerateMetadataHash(metadata AgentMetadata) string {
 		metadata.Name,
 		metadata.Description,
 		metadata.Image,
-		strings.Join(metadata.Capabilities, ","))
+		strings.Join(sdktypes.CapabilityNames(metadata.Capabilities), ","))
 
 	// Generate SHA256 hash
 	hash := sha256.Sum256([]byte(data))

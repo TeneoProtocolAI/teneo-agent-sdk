@@ -112,7 +112,7 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 		}
 
 		// Build capabilities JSON
-		capabilitiesJSON, err := buildCapabilitiesJSON(config.Config.Capabilities)
+		capabilitiesJSON, err := buildCapabilitiesJSON(config.Config)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build capabilities JSON: %w", err)
 		}
@@ -167,7 +167,7 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 			Name:         config.Config.Name,
 			Description:  config.Config.Description,
 			Image:        config.Config.Image,
-			Capabilities: config.Config.Capabilities,
+			Capabilities: config.Config.ResolveCapabilities(),
 			AgentID:      agentID,
 		}
 
@@ -208,7 +208,7 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 			Name:         config.Config.Name,
 			Description:  config.Config.Description,
 			Image:        config.Config.Image,
-			Capabilities: config.Config.Capabilities,
+			Capabilities: config.Config.ResolveCapabilities(),
 			AgentID:      generateAgentID(config.Config.Name),
 		}
 
@@ -710,17 +710,9 @@ func getAddressFromPrivateKey(privateKeyHex string) string {
 	return address.Hex()
 }
 
-// buildCapabilitiesJSON converts a capabilities slice to JSON
-func buildCapabilitiesJSON(capabilities []string) ([]byte, error) {
-	// Convert simple string capabilities to capability objects with name
-	type capabilityObj struct {
-		Name string `json:"name"`
-	}
-
-	capObjs := make([]capabilityObj, len(capabilities))
-	for i, cap := range capabilities {
-		capObjs[i] = capabilityObj{Name: cap}
-	}
-
-	return json.Marshal(capObjs)
+// buildCapabilitiesJSON converts config capabilities to JSON.
+// Uses CapabilityDetails (with descriptions) if available, otherwise
+// falls back to Capabilities string slice for backward compatibility.
+func buildCapabilitiesJSON(config *Config) ([]byte, error) {
+	return json.Marshal(config.ResolveCapabilities())
 }

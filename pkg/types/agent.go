@@ -93,7 +93,7 @@ type AgentStatus struct {
 	ID              string            `json:"id"`
 	Name            string            `json:"name"`
 	Version         string            `json:"version"`
-	Capabilities    []string          `json:"capabilities"`
+	Capabilities    []Capability      `json:"capabilities"`
 	IsActive        bool              `json:"is_active"`
 	IsOnline        bool              `json:"is_online"`
 	TasksProcessed  int64             `json:"tasks_processed"`
@@ -115,7 +115,15 @@ type AgentMetrics struct {
 	LastUpdated         time.Time     `json:"last_updated"`
 }
 
+// Capability represents an agent capability with name and description.
+// This is the standard capability format used across the Teneo ecosystem.
+type Capability struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+}
+
 // AgentCapability represents a capability that an agent can perform
+// Deprecated: Use Capability instead for consistency with the rest of the ecosystem.
 type AgentCapability struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
@@ -137,7 +145,7 @@ type AgentConfig struct {
 	Name               string            `json:"name"`
 	Description        string            `json:"description"`
 	Version            string            `json:"version"`
-	Capabilities       []string          `json:"capabilities"`
+	Capabilities       []Capability      `json:"capabilities"`
 	ContactInfo        string            `json:"contact_info"`
 	PricingModel       string            `json:"pricing_model"`
 	InterfaceType      string            `json:"interface_type"`
@@ -228,6 +236,26 @@ const (
 	LogLevelWarn  = "warn"
 	LogLevelError = "error"
 )
+
+// CapabilitiesFromStrings converts a slice of capability name strings
+// to Capability objects. Useful for backward compatibility when migrating
+// from []string to []Capability.
+func CapabilitiesFromStrings(names []string) []Capability {
+	caps := make([]Capability, len(names))
+	for i, name := range names {
+		caps[i] = Capability{Name: name}
+	}
+	return caps
+}
+
+// CapabilityNames extracts just the name strings from a slice of Capabilities.
+func CapabilityNames(caps []Capability) []string {
+	names := make([]string, len(caps))
+	for i, cap := range caps {
+		names[i] = cap.Name
+	}
+	return names
+}
 
 // Common capabilities
 var StandardCapabilities = []string{
