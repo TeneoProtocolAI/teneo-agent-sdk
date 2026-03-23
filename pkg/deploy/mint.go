@@ -72,6 +72,23 @@ type Command struct {
 // MintResult is defined in chain.go with fields:
 // TokenID, TxHash, AgentID, Status, ContractAddress, Message
 
+// safeTokenID converts an int64 token ID to uint64 with validation.
+// Returns an error if the value is negative (which would silently wrap).
+func safeTokenID(id int64) (uint64, error) {
+	if id < 0 {
+		return 0, fmt.Errorf("invalid token_id %d: must be non-negative", id)
+	}
+	return uint64(id), nil
+}
+
+// safeTokenIDPtr converts a *int64 token ID pointer to uint64 with nil and sign checks.
+func safeTokenIDPtr(id *int64) (uint64, error) {
+	if id == nil {
+		return 0, fmt.Errorf("token_id is nil")
+	}
+	return safeTokenID(*id)
+}
+
 // Minter handles the gasless minting flow
 type Minter struct {
 	config       *MintConfig
@@ -387,11 +404,12 @@ func (m *Minter) syncAndMint(ctx context.Context, config *AgentConfig, configHas
 	switch syncResp.Status {
 	case "SYNCED":
 		log.Println("✅ Agent already synced!")
-		if syncResp.TokenID == nil {
-			return nil, fmt.Errorf("backend returned SYNCED status but no token_id")
+		tokenID, err := safeTokenIDPtr(syncResp.TokenID)
+		if err != nil {
+			return nil, fmt.Errorf("backend returned SYNCED status but invalid token_id: %w", err)
 		}
 		return &MintResult{
-			TokenID:         uint64(*syncResp.TokenID),
+			TokenID:         tokenID,
 			AgentID:         config.AgentID,
 			Status:          MintStatusAlreadyOwned,
 			ContractAddress: syncResp.ContractAddress,
@@ -458,10 +476,14 @@ func (m *Minter) executeMint(ctx context.Context, config *AgentConfig, authentic
 		return nil, fmt.Errorf("server returned gasless=true but invalid token_id=%d — this is a server error, not retrying to prevent double-mint", deployResp.TokenID)
 	}
 	if deployResp.Gasless {
-		log.Printf("✅ Gasless mint! Token ID: %d, Tx: %s", deployResp.TokenID, deployResp.TxHash)
+		tokenID, err := safeTokenID(deployResp.TokenID)
+		if err != nil {
+			return nil, fmt.Errorf("gasless mint returned invalid token_id: %w", err)
+		}
+		log.Printf("✅ Gasless mint! Token ID: %d, Tx: %s", tokenID, deployResp.TxHash)
 		m.walClient.Delete(config.AgentID)
 		return &MintResult{
-			TokenID:         uint64(deployResp.TokenID),
+			TokenID:         tokenID,
 			AgentID:         config.AgentID,
 			Status:          MintStatusMinted,
 			ContractAddress: deployResp.ContractAddress,
@@ -525,10 +547,7 @@ func (m *Minter) executeUpdate(ctx context.Context, config *AgentConfig, configH
 	if err != nil {
 		// Update succeeded, but re-sync failed - still return success
 		log.Printf("⚠️ Re-sync challenge failed: %v (update was successful)", err)
-		var tokenID uint64
-		if syncResp.TokenID != nil {
-			tokenID = uint64(*syncResp.TokenID)
-		}
+		tokenID, _ := safeTokenIDPtr(syncResp.TokenID)
 		return &MintResult{
 			AgentID:         config.AgentID,
 			TokenID:         tokenID,
@@ -543,10 +562,7 @@ func (m *Minter) executeUpdate(ctx context.Context, config *AgentConfig, configH
 	if err != nil {
 		// Same - update succeeded
 		log.Printf("⚠️ Re-sync sign failed: %v (update was successful)", err)
-		var tokenID uint64
-		if syncResp.TokenID != nil {
-			tokenID = uint64(*syncResp.TokenID)
-		}
+		tokenID, _ := safeTokenIDPtr(syncResp.TokenID)
 		return &MintResult{
 			AgentID:         config.AgentID,
 			TokenID:         tokenID,
@@ -571,13 +587,12 @@ func (m *Minter) executeUpdate(ctx context.Context, config *AgentConfig, configH
 		log.Printf("✅ Re-sync status: %s", reSyncResp.Status)
 	}
 
-	var tokenID uint64
-	if syncResp.TokenID != nil {
-		tokenID = uint64(*syncResp.TokenID)
-	}
+	tokenID, _ := safeTokenIDPtr(syncResp.TokenID)
 	// Prefer re-sync token ID if available
 	if reSyncResp != nil && reSyncResp.TokenID != nil {
-		tokenID = uint64(*reSyncResp.TokenID)
+		if id, err := safeTokenIDPtr(reSyncResp.TokenID); err == nil {
+			tokenID = id
+		}
 	}
 
 	return &MintResult{
