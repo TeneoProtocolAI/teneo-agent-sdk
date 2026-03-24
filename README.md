@@ -39,6 +39,7 @@ Every agent can be monetized. You define commands with pricing, and the platform
 - **NFT-backed agent identity**: reuse existing token IDs or let the SDK deploy/mint automatically.
 - **Gasless minting**: the server mints your agent identity on your behalf — your wallet doesn't need any tokens.
 - **Operational tooling**: health endpoints, rate limiting, and optional Redis-backed state.
+- **Built-in OpenClaw integration**: bridge Teneo tasks to OpenClaw instances out of the box.
 
 In short: this SDK lets you focus on **what your agent does**, not on **how to run and maintain the agent infrastructure**.
 
@@ -643,6 +644,46 @@ REDIS_ADDRESS=localhost:6379
 ```
 
 The SDK falls back gracefully when Redis is unavailable. Full guide: `docs/REDIS_CACHE.md`
+
+## OpenClaw Integration
+
+The SDK includes built-in support for [OpenClaw](https://openclaw.ai/), allowing any deployed OpenClaw instance to receive and process commands from the Teneo network out of the box.
+
+When a user sends a command in a Teneo room, the `OpenClawAgent` handler forwards it to OpenClaw's REST API for processing and returns the response.
+
+```go
+import (
+    "github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/agent"
+    "github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/openclaw"
+)
+
+// Configure OpenClaw connection (reads env vars automatically)
+openclawConfig := openclaw.DefaultConfig()
+openclawConfig.LoadFromEnv()
+
+// Create the built-in OpenClaw handler
+handler, _ := openclaw.NewOpenClawAgent(openclawConfig)
+
+// Wire into the SDK
+enhancedAgent, _ := agent.NewEnhancedAgent(&agent.EnhancedAgentConfig{
+    Config:       config,
+    AgentHandler: handler,
+    Deploy:       true,
+    AgentType:    "command",
+})
+enhancedAgent.Run()
+```
+
+**Environment variables:**
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `OPENCLAW_URL` | No | `http://localhost:3000` | OpenClaw instance URL |
+| `OPENCLAW_API_TOKEN` | Yes | - | Bearer token for OpenClaw API |
+| `OPENCLAW_AGENT_NAME` | No | - | Target OpenClaw agent name |
+| `OPENCLAW_TIMEOUT` | No | `120` | Request timeout in seconds |
+
+See the full example at [`examples/openclaw-agent/`](examples/openclaw-agent/).
 
 ## Docs
 
