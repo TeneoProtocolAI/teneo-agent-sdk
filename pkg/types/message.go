@@ -173,18 +173,18 @@ type TaskResultMessage struct {
 
 // AgentInfo represents basic agent information
 type AgentInfo struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	Capabilities []string `json:"capabilities"`
-	Room         string   `json:"room"`
-	Status       string   `json:"status"`
+	ID           string       `json:"id"`
+	Name         string       `json:"name"`
+	Capabilities []Capability `json:"capabilities"`
+	Room         string       `json:"room"`
+	Status       string       `json:"status"`
 }
 
 // AgentSelectedMessage represents an agent selection message
 type AgentSelectedMessage struct {
-	AgentID      string   `json:"agent_id"`
-	AgentName    string   `json:"agent_name"`
-	Capabilities []string `json:"capabilities"`
+	AgentID      string       `json:"agent_id"`
+	AgentName    string       `json:"agent_name"`
+	Capabilities []Capability `json:"capabilities"`
 	Reasoning    string   `json:"reasoning"`
 	UserRequest  string   `json:"user_request"`
 }

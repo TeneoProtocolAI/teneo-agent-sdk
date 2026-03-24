@@ -38,6 +38,11 @@ type DeployConfig struct {
 	Categories      json.RawMessage // Agent categories (optional)
 	MetadataVersion string          // Metadata version (e.g. "2.3.0")
 
+	// Profile metadata (optional, not included in config hash)
+	ShortDescription string          // Brief one-line summary
+	TutorialURL      string          // YouTube/video tutorial URL
+	FAQItems         json.RawMessage // FAQ entries as [{question, answer}]
+
 	// State Management
 	StateFilePath string // Path to state file (default: .teneo-deploy-state.json)
 
@@ -331,18 +336,21 @@ func (d *Deployer) authenticate(ctx context.Context) (string, int64, error) {
 // callDeploy calls the deploy endpoint
 func (d *Deployer) callDeploy(ctx context.Context, sessionToken string) (*DeployResponse, error) {
 	req := &DeployRequest{
-		WalletAddress:   d.authenticator.GetAddress(),
-		AgentID:         d.config.AgentID,
-		AgentName:       d.config.AgentName,
-		Description:     d.config.Description,
-		Image:           d.config.Image,
-		AgentType:       d.config.AgentType,
-		Capabilities:    d.config.Capabilities,
-		Commands:        d.config.Commands,
-		NlpFallback:     d.config.NlpFallback,
-		Categories:      d.config.Categories,
-		ConfigHash:      d.configHash,
-		MetadataVersion: d.config.MetadataVersion,
+		WalletAddress:    d.authenticator.GetAddress(),
+		AgentID:          d.config.AgentID,
+		AgentName:        d.config.AgentName,
+		Description:      d.config.Description,
+		Image:            d.config.Image,
+		AgentType:        d.config.AgentType,
+		Capabilities:     d.config.Capabilities,
+		Commands:         d.config.Commands,
+		NlpFallback:      d.config.NlpFallback,
+		Categories:       d.config.Categories,
+		ShortDescription: d.config.ShortDescription,
+		TutorialURL:      d.config.TutorialURL,
+		FAQItems:         d.config.FAQItems,
+		ConfigHash:       d.configHash,
+		MetadataVersion:  d.config.MetadataVersion,
 	}
 
 	return d.httpClient.Deploy(sessionToken, req)
@@ -358,20 +366,23 @@ func (d *Deployer) confirmMint(ctx context.Context, sessionToken string, state *
 	}
 	
 	req := &ConfirmMintRequest{
-		AgentID:         state.AgentID,
-		AgentName:       d.config.AgentName,
-		WalletAddress:   state.WalletAddress,
-		TokenID:         int64(state.TokenID),
-		TxHash:          state.TxHash,
-		ConfigHash:      d.configHash,
-		Description:     d.config.Description,
-		Image:           d.config.Image,
-		AgentType:       d.config.AgentType,
-		Capabilities:    d.config.Capabilities,
-		Commands:        d.config.Commands,
-		NlpFallback:     d.config.NlpFallback,
-		Categories:      d.config.Categories,
-		MetadataVersion: d.config.MetadataVersion,
+		AgentID:          state.AgentID,
+		AgentName:        d.config.AgentName,
+		WalletAddress:    state.WalletAddress,
+		TokenID:          int64(state.TokenID),
+		TxHash:           state.TxHash,
+		ConfigHash:       d.configHash,
+		Description:      d.config.Description,
+		Image:            d.config.Image,
+		AgentType:        d.config.AgentType,
+		Capabilities:     d.config.Capabilities,
+		Commands:         d.config.Commands,
+		NlpFallback:      d.config.NlpFallback,
+		Categories:       d.config.Categories,
+		ShortDescription: d.config.ShortDescription,
+		TutorialURL:      d.config.TutorialURL,
+		FAQItems:         d.config.FAQItems,
+		MetadataVersion:  d.config.MetadataVersion,
 	}
 
 	return d.httpClient.ConfirmMint(sessionToken, req)

@@ -153,7 +153,7 @@ func (a *Agent) registerWithNetwork() error {
 		mintRequest := &types.MintRequest{
 			Name:           a.config.Name,
 			Description:    a.config.Description,
-			Capabilities:   a.config.Capabilities,
+			Capabilities:   a.config.ResolveCapabilities(),
 			ContactInfo:    a.config.ContactInfo,
 			PricingModel:   a.config.PricingModel,
 			InterfaceType:  a.config.InterfaceType,
