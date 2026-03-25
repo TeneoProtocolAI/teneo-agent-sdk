@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -248,6 +249,72 @@ func TestGenerateConfigHash(t *testing.T) {
 	}
 }
 
+func TestGenerateConfigHashNormalizesLegacyChoiceParameters(t *testing.T) {
+	legacyJSON := []byte(`{
+		"name": "Test Agent",
+		"agentId": "test-agent",
+		"description": "A valid description for hashing",
+		"agentType": "command",
+		"categories": ["AI"],
+		"capabilities": [{"name": "cap"}],
+		"commands": [{
+			"trigger": "small",
+			"description": "Uses legacy choice metadata",
+			"pricePerUnit": 0.1,
+			"priceType": "task-transaction",
+			"taskUnit": "per-query",
+			"parameters": [{
+				"name": "template_title",
+				"type": "choice",
+				"required": true,
+				"description": "Choose a template",
+				"choices": ["Trade Tracking Vault", "Daily Journal"]
+			}]
+		}]
+	}`)
+
+	var legacyConfig AgentConfig
+	if err := json.Unmarshal(legacyJSON, &legacyConfig); err != nil {
+		t.Fatalf("failed to unmarshal legacy config: %v", err)
+	}
+
+	canonicalConfig := &AgentConfig{
+		Name:         "Test Agent",
+		AgentID:      "test-agent",
+		Description:  "A valid description for hashing",
+		AgentType:    "command",
+		Categories:   []string{"AI"},
+		Capabilities: []Capability{{Name: "cap"}},
+		Commands: []Command{{
+			Trigger:      "small",
+			Description:  "Uses legacy choice metadata",
+			PricePerUnit: 0.1,
+			PriceType:    "task-transaction",
+			TaskUnit:     "per-query",
+			Parameters: []CommandParameter{{
+				Name:        "template_title",
+				Type:        "enum",
+				Required:    true,
+				Description: "Choose a template",
+				Options:     []string{"Trade Tracking Vault", "Daily Journal"},
+			}},
+		}},
+	}
+
+	if got, want := legacyConfig.Commands[0].Parameters[0].Type, ParamTypeEnum; got != want {
+		t.Fatalf("legacy parameter type = %q, want %q", got, want)
+	}
+	if len(legacyConfig.Commands[0].Parameters[0].Options) != 2 {
+		t.Fatalf("legacy parameter options were not normalized: %#v", legacyConfig.Commands[0].Parameters[0].Options)
+	}
+
+	legacyHash := GenerateConfigHash(&legacyConfig)
+	canonicalHash := GenerateConfigHash(canonicalConfig)
+	if legacyHash != canonicalHash {
+		t.Fatalf("normalized legacy hash %q did not match canonical hash %q", legacyHash, canonicalHash)
+	}
+}
+
 func TestPreValidate(t *testing.T) {
 	minter := &Minter{}
 
@@ -485,7 +552,7 @@ func TestValidateConfig(t *testing.T) {
 }
 
 func boolPtr(b bool) *bool { return &b }
-func intPtr(i int) *int   { return &i }
+func intPtr(i int) *int    { return &i }
 
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
@@ -525,5 +592,47 @@ func TestFileSizeLimit(t *testing.T) {
 	}
 	if !contains(err.Error(), "too large") {
 		t.Errorf("Expected 'too large' error, got: %v", err)
+	}
+}
+
+func TestValidateConfigAcceptsLegacyChoiceParameterJSON(t *testing.T) {
+	raw := []byte(`{
+		"name": "Choice Agent",
+		"agentId": "choice-agent",
+		"description": "A valid description that is long enough",
+		"agentType": "command",
+		"categories": ["AI"],
+		"capabilities": [{"name": "cap"}],
+		"commands": [{
+			"trigger": "medium",
+			"description": "Legacy parameter metadata",
+			"pricePerUnit": 0.1,
+			"priceType": "task-transaction",
+			"taskUnit": "per-query",
+			"parameters": [{
+				"name": "template_title",
+				"type": "choice",
+				"required": true,
+				"enum": ["Trade Tracking Vault", "Daily Journal"]
+			}]
+		}]
+	}`)
+
+	var config AgentConfig
+	if err := json.Unmarshal(raw, &config); err != nil {
+		t.Fatalf("failed to unmarshal config: %v", err)
+	}
+
+	minter := &Minter{}
+	if err := minter.validateConfig(&config); err != nil {
+		t.Fatalf("validateConfig rejected legacy choice metadata: %v", err)
+	}
+
+	param := config.Commands[0].Parameters[0]
+	if param.Type != ParamTypeEnum {
+		t.Fatalf("normalized parameter type = %q, want %q", param.Type, ParamTypeEnum)
+	}
+	if len(param.Options) != 2 {
+		t.Fatalf("normalized parameter options = %#v, want two entries", param.Options)
 	}
 }

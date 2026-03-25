@@ -25,21 +25,21 @@ import (
 
 // EnhancedAgent represents a fully functional Teneo network agent with all capabilities
 type EnhancedAgent struct {
-	config          *Config
-	agentHandler    types.AgentHandler
-	authManager     *auth.Manager
-	networkClient   *network.NetworkClient
-	protocolHandler *network.ProtocolHandler
-	taskCoordinator *network.TaskCoordinator
-	healthServer    *health.Server
-	agentCache      cache.AgentCache
-	backendURL      string
+	config               *Config
+	agentHandler         types.AgentHandler
+	authManager          *auth.Manager
+	networkClient        *network.NetworkClient
+	protocolHandler      *network.ProtocolHandler
+	taskCoordinator      *network.TaskCoordinator
+	healthServer         *health.Server
+	agentCache           cache.AgentCache
+	backendURL           string
 	submitForReviewOnRun bool
-	running         bool
-	startTime       time.Time
-	mu              sync.RWMutex
-	ctx             context.Context
-	cancel          context.CancelFunc
+	running              bool
+	startTime            time.Time
+	mu                   sync.RWMutex
+	ctx                  context.Context
+	cancel               context.CancelFunc
 }
 
 // EnhancedAgentConfig represents configuration for the enhanced agent
@@ -137,7 +137,7 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 			ShortDescription: config.Config.ShortDescription,
 			TutorialURL:      config.Config.TutorialURL,
 			StateFilePath:    config.StateFilePath,
-			MetadataVersion:  "2.3.0",
+			MetadataVersion:  "2.4.0",
 		}
 
 		// Execute deployment
