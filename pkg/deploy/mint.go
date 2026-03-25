@@ -23,6 +23,127 @@ var htmlTagPattern = regexp.MustCompile(`<[^>]*>`)
 // The actual limit is fetched from backend via schema endpoint
 const DefaultMaxJSONSize = 24 * 1024
 
+// --- Agent Type constants ---
+
+const (
+	AgentTypeCommand     = "command"
+	AgentTypeNLP         = "nlp"
+	AgentTypeMCP         = "mcp"
+	AgentTypeCommandless = "commandless"
+)
+
+// ValidAgentTypes is the set of allowed agent types.
+var ValidAgentTypes = map[string]bool{
+	AgentTypeCommand:     true,
+	AgentTypeNLP:         true,
+	AgentTypeMCP:         true,
+	AgentTypeCommandless: true,
+}
+
+// --- Parameter Type constants ---
+
+const (
+	ParamTypeString   = "string"
+	ParamTypeNumber   = "number"
+	ParamTypeUsername = "username"
+	ParamTypeBoolean  = "boolean"
+	ParamTypeURL      = "url"
+	ParamTypeID       = "id"
+	ParamTypeInterval = "interval"
+	ParamTypeDatetime = "datetime"
+	ParamTypeEnum     = "enum"
+)
+
+// ValidParameterTypes is the set of allowed parameter types.
+var ValidParameterTypes = map[string]bool{
+	ParamTypeString:   true,
+	ParamTypeNumber:   true,
+	ParamTypeUsername: true,
+	ParamTypeBoolean:  true,
+	ParamTypeURL:      true,
+	ParamTypeID:       true,
+	ParamTypeInterval: true,
+	ParamTypeDatetime: true,
+	ParamTypeEnum:     true,
+}
+
+// --- Price Type constants ---
+
+const (
+	PriceTypeTaskTransaction = "task-transaction"
+	PriceTypeTimeBased       = "time-based-task"
+)
+
+// ValidPriceTypes is the set of allowed price types.
+var ValidPriceTypes = map[string]bool{
+	PriceTypeTaskTransaction: true,
+	PriceTypeTimeBased:       true,
+}
+
+// --- Task Unit constants ---
+
+const (
+	TaskUnitPerQuery = "per-query"
+	TaskUnitPerItem  = "per-item"
+)
+
+// ValidTaskUnits is the set of allowed task units.
+var ValidTaskUnits = map[string]bool{
+	TaskUnitPerQuery: true,
+	TaskUnitPerItem:  true,
+}
+
+// --- Time Unit constants ---
+
+const (
+	TimeUnitSecond = "second"
+	TimeUnitMinute = "minute"
+	TimeUnitHour   = "hour"
+)
+
+// ValidTimeUnits is the set of allowed time units.
+var ValidTimeUnits = map[string]bool{
+	TimeUnitSecond: true,
+	TimeUnitMinute: true,
+	TimeUnitHour:   true,
+}
+
+// --- Agent Category constants ---
+
+const MaxCategories = 2
+
+// AgentCategories is the list of allowed categories (order matches deployer UI).
+var AgentCategories = []string{
+	"Trading",
+	"Finance",
+	"Crypto",
+	"Social Media",
+	"Lead Generation",
+	"E-Commerce",
+	"SEO",
+	"News",
+	"Real Estate",
+	"Travel",
+	"Automation",
+	"Developer Tools",
+	"AI",
+	"Integrations",
+	"Open Source",
+	"Jobs",
+	"Price Lists",
+	"Other",
+}
+
+// validCategories is a lookup set built from AgentCategories.
+var validCategories map[string]bool
+
+func init() {
+	validCategories = make(map[string]bool, len(AgentCategories))
+	for _, c := range AgentCategories {
+		validCategories[c] = true
+	}
+}
+
 // FAQItem represents a question/answer pair for the agent's profile.
 type FAQItem struct {
 	Question string `json:"question"`
@@ -53,14 +174,69 @@ type Capability struct {
 	Description string `json:"description,omitempty"`
 }
 
-// CommandParameter represents a parameter for an agent command
+// CommandParameter represents a parameter for an agent command.
+// The fields available depend on the parameter Type:
+//   - string:   MinLength, MaxLength
+//   - number:   MinValue, MaxValue
+//   - username: MinLength, MaxLength
+//   - boolean:  (no extra fields)
+//   - url:      MinLength
+//   - id:       (no extra fields)
+//   - interval: MinDuration, MaxDuration
+//   - datetime: Format, IncludeTime, MinDate, MaxDate
+//   - enum:     Options
 type CommandParameter struct {
 	Name           string `json:"name"`
 	Type           string `json:"type"`
 	Required       bool   `json:"required"`
 	Description    string `json:"description,omitempty"`
-	MinValue       string `json:"minValue,omitempty"`
+	Default        any    `json:"default,omitempty"`
 	IsBillingCount bool   `json:"isBillingCount,omitempty"`
+
+	// Variadic parameters accept multiple values (must be the last parameter)
+	Variadic       bool `json:"variadic,omitempty"`
+	MinOccurrences *int `json:"minOccurrences,omitempty"`
+	MaxOccurrences *int `json:"maxOccurrences,omitempty"`
+
+	// DependsOn names another parameter this one depends on
+	DependsOn string `json:"dependsOn,omitempty"`
+
+	// String/Username/URL constraints
+	MinLength *int `json:"minLength,omitempty"`
+	MaxLength *int `json:"maxLength,omitempty"`
+
+	// Number constraints (MinValue is string for backward-compat with config hash)
+	MinValue string   `json:"minValue,omitempty"`
+	MaxValue *float64 `json:"maxValue,omitempty"`
+
+	// Enum options
+	Options []string `json:"options,omitempty"`
+
+	// Interval constraints (e.g. "30s", "5m", "2h")
+	MinDuration string `json:"minDuration,omitempty"`
+	MaxDuration string `json:"maxDuration,omitempty"`
+
+	// Datetime constraints
+	Format      string `json:"format,omitempty"`
+	IncludeTime *bool  `json:"includeTime,omitempty"`
+	MinDate     string `json:"minDate,omitempty"`
+	MaxDate     string `json:"maxDate,omitempty"`
+}
+
+// CommandVariant represents an alternative execution path for a command.
+// Each variant has its own parameters, argument constraints, and pricing.
+type CommandVariant struct {
+	Name         string             `json:"name"`
+	Description  string             `json:"description,omitempty"`
+	Argument     string             `json:"argument,omitempty"`
+	Parameters   []CommandParameter `json:"parameters"`
+	StrictArg    *bool              `json:"strictArg,omitempty"`
+	MinArgs      *int               `json:"minArgs,omitempty"`
+	MaxArgs      *int               `json:"maxArgs,omitempty"`
+	PricePerUnit float64            `json:"pricePerUnit,omitempty"`
+	PriceType    string             `json:"priceType,omitempty"`
+	TaskUnit     string             `json:"taskUnit,omitempty"`
+	TimeUnit     string             `json:"timeUnit,omitempty"`
 }
 
 // Command represents an agent command
@@ -69,6 +245,8 @@ type Command struct {
 	Argument     string             `json:"argument,omitempty"`
 	Description  string             `json:"description,omitempty"`
 	Parameters   []CommandParameter `json:"parameters,omitempty"`
+	Variants     []CommandVariant   `json:"variants,omitempty"`
+	HasVariants  bool               `json:"hasVariants,omitempty"`
 	StrictArg    *bool              `json:"strictArg,omitempty"`
 	MinArgs      *int               `json:"minArgs,omitempty"`
 	MaxArgs      *int               `json:"maxArgs,omitempty"`
@@ -288,17 +466,21 @@ func (m *Minter) validateConfig(config *AgentConfig) error {
 	}
 
 	// AgentType validation
-	validTypes := map[string]bool{"command": true, "nlp": true, "mcp": true, "commandless": true}
-	if !validTypes[config.AgentType] {
-		return fmt.Errorf("agentType must be 'command', 'nlp', 'mcp', or 'commandless'")
+	if !ValidAgentTypes[config.AgentType] {
+		return fmt.Errorf("agentType must be one of: command, nlp, mcp, commandless")
 	}
 
 	// Categories validation
 	if len(config.Categories) < 1 {
 		return fmt.Errorf("at least 1 category is required")
 	}
-	if len(config.Categories) > 2 {
-		return fmt.Errorf("maximum 2 categories allowed")
+	if len(config.Categories) > MaxCategories {
+		return fmt.Errorf("maximum %d categories allowed", MaxCategories)
+	}
+	for _, cat := range config.Categories {
+		if !validCategories[cat] {
+			return fmt.Errorf("invalid category %q; allowed: %s", cat, strings.Join(AgentCategories, ", "))
+		}
 	}
 
 	// Capabilities validation
@@ -327,20 +509,111 @@ func (m *Minter) validateConfig(config *AgentConfig) error {
 	}
 
 	for i, cmd := range config.Commands {
-		if cmd.Trigger == "" {
-			return fmt.Errorf("command %d: trigger is required", i+1)
-		}
-		if len(cmd.Trigger) > 100 {
-			return fmt.Errorf("command %d: trigger must not exceed 100 characters", i+1)
-		}
-		if len(cmd.Description) > 500 {
-			return fmt.Errorf("command %d: description must not exceed 500 characters", i+1)
+		if err := validateCommand(i, &cmd); err != nil {
+			return err
 		}
 	}
 
 	// MCP manifest validation
-	if config.AgentType == "mcp" && config.McpManifest == "" {
+	if config.AgentType == AgentTypeMCP && config.McpManifest == "" {
 		return fmt.Errorf("mcpManifest is required for mcp agent type")
+	}
+
+	return nil
+}
+
+// validateCommand validates a single command and its parameters/variants.
+func validateCommand(index int, cmd *Command) error {
+	label := fmt.Sprintf("command %d", index+1)
+
+	if cmd.Trigger == "" {
+		return fmt.Errorf("%s: trigger is required", label)
+	}
+	if len(cmd.Trigger) > 100 {
+		return fmt.Errorf("%s: trigger must not exceed 100 characters", label)
+	}
+	if len(cmd.Description) > 500 {
+		return fmt.Errorf("%s: description must not exceed 500 characters", label)
+	}
+
+	// Validate pricing fields
+	if err := validatePricing(label, cmd.PriceType, cmd.TaskUnit, cmd.TimeUnit); err != nil {
+		return err
+	}
+
+	// Validate parameters
+	for j, p := range cmd.Parameters {
+		if err := validateParameter(fmt.Sprintf("%s param %d", label, j+1), &p); err != nil {
+			return err
+		}
+	}
+
+	// Validate variants if present
+	if cmd.HasVariants || len(cmd.Variants) > 0 {
+		if len(cmd.Variants) == 0 {
+			return fmt.Errorf("%s: hasVariants is true but no variants provided", label)
+		}
+		names := make(map[string]bool)
+		for k, v := range cmd.Variants {
+			vLabel := fmt.Sprintf("%s variant %d (%s)", label, k+1, v.Name)
+			if v.Name == "" {
+				return fmt.Errorf("%s variant %d: name is required", label, k+1)
+			}
+			lower := strings.ToLower(v.Name)
+			if names[lower] {
+				return fmt.Errorf("%s: duplicate variant name %q", label, v.Name)
+			}
+			names[lower] = true
+
+			if err := validatePricing(vLabel, v.PriceType, v.TaskUnit, v.TimeUnit); err != nil {
+				return err
+			}
+			for j, p := range v.Parameters {
+				if err := validateParameter(fmt.Sprintf("%s param %d", vLabel, j+1), &p); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// validatePricing validates price type, task unit, and time unit fields.
+func validatePricing(label, priceType, taskUnit, timeUnit string) error {
+	if priceType != "" && !ValidPriceTypes[priceType] {
+		return fmt.Errorf("%s: invalid priceType %q; must be task-transaction or time-based-task", label, priceType)
+	}
+	if taskUnit != "" && !ValidTaskUnits[taskUnit] {
+		return fmt.Errorf("%s: invalid taskUnit %q; must be per-query or per-item", label, taskUnit)
+	}
+	if timeUnit != "" && !ValidTimeUnits[timeUnit] {
+		return fmt.Errorf("%s: invalid timeUnit %q; must be second, minute, or hour", label, timeUnit)
+	}
+
+	// Cross-field: task-transaction requires taskUnit
+	if priceType == PriceTypeTaskTransaction && taskUnit == "" {
+		return fmt.Errorf("%s: taskUnit is required when priceType is task-transaction", label)
+	}
+	// Cross-field: time-based-task requires timeUnit
+	if priceType == PriceTypeTimeBased && timeUnit == "" {
+		return fmt.Errorf("%s: timeUnit is required when priceType is time-based-task", label)
+	}
+	return nil
+}
+
+// validateParameter validates a single command parameter.
+func validateParameter(label string, p *CommandParameter) error {
+	if p.Name == "" {
+		return fmt.Errorf("%s: name is required", label)
+	}
+	if !ValidParameterTypes[p.Type] {
+		return fmt.Errorf("%s: invalid type %q; must be one of: string, number, username, boolean, url, id, interval, datetime, enum", label, p.Type)
+	}
+
+	// Enum must have options
+	if p.Type == ParamTypeEnum && len(p.Options) == 0 {
+		return fmt.Errorf("%s: enum type requires at least one option", label)
 	}
 
 	return nil
@@ -710,10 +983,13 @@ func (m *Minter) recoverFromWAL(ctx context.Context, wal *WALEntry, config *Agen
 }
 
 // GenerateConfigHash generates a canonical v4 hash of the agent config.
+// This MUST produce identical output to the backend's config_hash.go.
+//
 // v4 includes ALL command fields (description, argument, parameters, strictArg, minArgs,
 // maxArgs, priceType, taskUnit, timeUnit) and capability descriptions — so any change
 // to any field triggers an IPFS re-upload.
 // Image is deliberately excluded — image changes are cosmetic, not functional.
+// Variants are NOT included in the hash (backend does not hash them yet).
 func GenerateConfigHash(config *AgentConfig) string {
 	// Sort capabilities alphabetically by name (include description)
 	caps := make([]Capability, len(config.Capabilities))
@@ -753,7 +1029,7 @@ func GenerateConfigHash(config *AgentConfig) string {
 
 		cmdParts := make([]string, len(cmds))
 		for i, cmd := range cmds {
-			// Sort parameters by name
+			// Sort parameters by name (matches backend paramForHash)
 			params := make([]CommandParameter, len(cmd.Parameters))
 			copy(params, cmd.Parameters)
 			sort.Slice(params, func(a, b int) bool {

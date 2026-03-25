@@ -11,8 +11,8 @@ func TestGetVersion(t *testing.T) {
 		t.Error("Version should not be empty")
 	}
 
-	if !strings.Contains(version, "2.4.0") {
-		t.Errorf("Expected version to contain '2.4.0', got: %s", version)
+	if !strings.Contains(version, "2.5.0") {
+		t.Errorf("Expected version to contain '2.5.0', got: %s", version)
 	}
 }
 
@@ -21,7 +21,7 @@ func TestSemanticVersionComponents(t *testing.T) {
 		t.Errorf("Expected Major version to be 2, got: %d", Major)
 	}
 	
-	if Minor != 4 {
+	if Minor != 5 {
 		t.Errorf("Expected Minor version to be 4, got: %d", Minor)
 	}
 	
@@ -32,7 +32,7 @@ func TestSemanticVersionComponents(t *testing.T) {
 
 func TestVersionFormat(t *testing.T) {
 	version := Version()
-	expected := "2.4.0"
+	expected := "2.5.0"
 	
 	if version != expected {
 		t.Errorf("Expected version '%s', got: '%s'", expected, version)
@@ -69,8 +69,8 @@ func TestGetVersionString(t *testing.T) {
 		t.Error("Version string should not be empty")
 	}
 	
-	if !strings.Contains(versionString, "2.4.0") {
-		t.Errorf("Version string should contain '2.4.0', got: %s", versionString)
+	if !strings.Contains(versionString, "2.5.0") {
+		t.Errorf("Version string should contain '2.5.0', got: %s", versionString)
 	}
 }
 
@@ -84,8 +84,8 @@ func TestGetFullVersionString(t *testing.T) {
 		t.Errorf("Expected full version string to contain 'Teneo Agent SDK', got: %s", fullVersionString)
 	}
 	
-	if !strings.Contains(fullVersionString, "v2.4.0") {
-		t.Errorf("Expected full version string to contain 'v2.4.0', got: %s", fullVersionString)
+	if !strings.Contains(fullVersionString, "v2.5.0") {
+		t.Errorf("Expected full version string to contain 'v2.5.0', got: %s", fullVersionString)
 	}
 }
 
@@ -99,8 +99,8 @@ func TestGetBanner(t *testing.T) {
 		t.Error("Banner should contain 'Teneo Agent SDK'")
 	}
 	
-	if !strings.Contains(banner, "v2.4.0") {
-		t.Error("Banner should contain 'v2.4.0'")
+	if !strings.Contains(banner, "v2.5.0") {
+		t.Error("Banner should contain 'v2.5.0'")
 	}
 }
 
@@ -118,8 +118,8 @@ func TestIsCompatible(t *testing.T) {
 		otherMinor   int
 		expectedCompatible bool
 	}{
-		{"same version", 2, 4, true},
-		{"newer minor", 2, 5, false},
+		{"same version", 2, 5, true},
+		{"newer minor", 2, 6, false},
 		{"older minor", 2, -1, true}, // we're backward compatible
 		{"different major", 1, 0, false},
 		{"different major", 3, 0, false},
