@@ -278,10 +278,10 @@ func safeTokenIDPtr(id *int64) (uint64, error) {
 
 // Minter handles the gasless minting flow
 type Minter struct {
-	config       *MintConfig
-	httpClient   *HTTPClient
-	walClient    *WALClient
-	schemaCache  *SchemaCache
+	config      *MintConfig
+	httpClient  *HTTPClient
+	walClient   *WALClient
+	schemaCache *SchemaCache
 }
 
 // MintConfig contains configuration for minting
@@ -436,6 +436,8 @@ func (m *Minter) preValidate(config *AgentConfig) error {
 
 // validateConfig performs full validation against schema
 func (m *Minter) validateConfig(config *AgentConfig) error {
+	normalizeCommandsInPlace(config.Commands)
+
 	// Name validation
 	if len(config.Name) < 3 {
 		return fmt.Errorf("name must be at least 3 characters")
@@ -991,6 +993,10 @@ func (m *Minter) recoverFromWAL(ctx context.Context, wal *WALEntry, config *Agen
 // Image is deliberately excluded — image changes are cosmetic, not functional.
 // Variants are NOT included in the hash (backend does not hash them yet).
 func GenerateConfigHash(config *AgentConfig) string {
+	normalizedCommands := make([]Command, len(config.Commands))
+	copy(normalizedCommands, config.Commands)
+	normalizeCommandsInPlace(normalizedCommands)
+
 	// Sort capabilities alphabetically by name (include description)
 	caps := make([]Capability, len(config.Capabilities))
 	copy(caps, config.Capabilities)
@@ -1020,15 +1026,13 @@ func GenerateConfigHash(config *AgentConfig) string {
 	}
 
 	// Include full command data (sorted by trigger for determinism)
-	if len(config.Commands) > 0 {
-		cmds := make([]Command, len(config.Commands))
-		copy(cmds, config.Commands)
-		sort.Slice(cmds, func(i, j int) bool {
-			return cmds[i].Trigger < cmds[j].Trigger
+	if len(normalizedCommands) > 0 {
+		sort.Slice(normalizedCommands, func(i, j int) bool {
+			return normalizedCommands[i].Trigger < normalizedCommands[j].Trigger
 		})
 
-		cmdParts := make([]string, len(cmds))
-		for i, cmd := range cmds {
+		cmdParts := make([]string, len(normalizedCommands))
+		for i, cmd := range normalizedCommands {
 			// Sort parameters by name (matches backend paramForHash)
 			params := make([]CommandParameter, len(cmd.Parameters))
 			copy(params, cmd.Parameters)

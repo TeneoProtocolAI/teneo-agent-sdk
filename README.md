@@ -165,7 +165,7 @@ ACCEPT_EULA=true
   ],
   "nlp_fallback": false,
   "categories": ["Utilities"],
-  "metadata_version": "2.3.0"
+  "metadata_version": "2.4.0"
 }
 ```
 
@@ -319,7 +319,7 @@ Your agent metadata describes what your agent is and what it can do. Prepare it 
   "categories": [
     "Utilities"
   ],
-  "metadata_version": "2.3.0"
+  "metadata_version": "2.4.0"
 }
 ```
 
