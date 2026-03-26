@@ -135,7 +135,18 @@ func (s *TaskMessageSender) TriggerWalletTx(tx types.TxRequest, description stri
 
 // sendStandardizedMessage sends a message in standardized format
 func (s *TaskMessageSender) sendStandardizedMessage(msgType string, content interface{}) error {
-	return s.protocolHandler.SendTaskResponseToRoom(s.taskID, content.(string), msgType, true, "", s.room)
+	var contentStr string
+	switch v := content.(type) {
+	case string:
+		contentStr = v
+	default:
+		marshaled, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Errorf("failed to marshal content: %w", err)
+		}
+		contentStr = string(marshaled)
+	}
+	return s.protocolHandler.SendTaskResponseToRoom(s.taskID, contentStr, msgType, true, "", s.room)
 }
 
 // GetRequesterWalletAddress returns the wallet address of the user who initiated the task
