@@ -135,7 +135,18 @@ func (s *TaskMessageSender) TriggerWalletTx(tx types.TxRequest, description stri
 
 // sendStandardizedMessage sends a message in standardized format
 func (s *TaskMessageSender) sendStandardizedMessage(msgType string, content interface{}) error {
-	return s.protocolHandler.SendTaskResponseToRoom(s.taskID, content.(string), msgType, true, "", s.room)
+	var contentStr string
+	switch v := content.(type) {
+	case string:
+		contentStr = v
+	default:
+		marshaled, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Errorf("failed to marshal content: %w", err)
+		}
+		contentStr = string(marshaled)
+	}
+	return s.protocolHandler.SendTaskResponseToRoom(s.taskID, contentStr, msgType, true, "", s.room)
 }
 
 // GetRequesterWalletAddress returns the wallet address of the user who initiated the task
@@ -157,7 +168,7 @@ func NewTaskCoordinator(agentHandler types.AgentHandler, protocolHandler *Protoc
 	// Register task handler
 	protocolHandler.client.RegisterHandler("task", coordinator.HandleIncomingTask)
 	protocolHandler.client.RegisterHandler("message", coordinator.HandleUserMessage)
-	protocolHandler.client.RegisterHandler(types.MessageTypeTxResult, coordinator.HandleTxResult)
+	protocolHandler.client.RegisterHandler("tx_result", coordinator.HandleTxResultMessage)
 
 	return coordinator
 }
@@ -285,22 +296,49 @@ func (t *TaskCoordinator) HandleUserMessage(msg *types.Message) error {
 	return nil
 }
 
-// HandleTxResult routes wallet tx result events back through the streaming task handler.
-func (t *TaskCoordinator) HandleTxResult(msg *types.Message) error {
-	log.Printf("🧾 Received tx_result from %s", msg.From)
-
-	taskID := t.extractTaskID(msg)
-	if taskID == "" {
-		taskID = fmt.Sprintf("tx-result-%d", time.Now().UnixNano())
+// HandleTxResultMessage handles incoming tx_result messages from the coordinator.
+// These are sent by the user's wallet after signing (or rejecting) a transaction
+// that was requested via TriggerWalletTx.
+func (t *TaskCoordinator) HandleTxResultMessage(msg *types.Message) error {
+	// Parse tx_result data
+	var resultData types.TxResultData
+	if msg.Data == nil {
+		log.Printf("⚠️ Received tx_result with no data payload")
+		return nil
+	}
+	if err := json.Unmarshal(msg.Data, &resultData); err != nil {
+		log.Printf("⚠️ Failed to parse tx_result data: %v", err)
+		return nil
 	}
 
-	dataPayload := "{}"
-	if len(msg.Data) > 0 {
-		dataPayload = string(msg.Data)
-	}
-	content := fmt.Sprintf(`{"type":"tx_result","data":%s}`, dataPayload)
+	log.Printf("📋 Received tx_result for task %s: status=%s tx_hash=%s", resultData.TaskID, resultData.Status, resultData.TxHash)
 
-	go t.ExecuteTask(taskID, content, msg.Room, msg.From)
+	// Check if agent implements TxResultHandler
+	txResultHandler, ok := t.agentHandler.(types.TxResultHandler)
+	if !ok {
+		log.Printf("⚠️ Agent does not implement TxResultHandler, ignoring tx_result for task %s", resultData.TaskID)
+		return nil
+	}
+
+	// Execute in a goroutine to avoid blocking the message processing loop,
+	// consistent with HandleIncomingTask's pattern.
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		room := msg.Room
+
+		messageSender := &TaskMessageSender{
+			taskID:          resultData.TaskID,
+			protocolHandler: t.protocolHandler,
+			room:            room,
+			requesterWallet: msg.From,
+		}
+
+		if err := txResultHandler.HandleTxResult(ctx, resultData, room, messageSender); err != nil {
+			log.Printf("❌ Agent HandleTxResult failed for task %s: %v", resultData.TaskID, err)
+		}
+	}()
 	return nil
 }
 

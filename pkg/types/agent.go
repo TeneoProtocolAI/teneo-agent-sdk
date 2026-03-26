@@ -31,6 +31,14 @@ type AgentCleaner interface {
 	Cleanup(ctx context.Context) error
 }
 
+// TxResultHandler is an optional interface for agents that need to handle
+// transaction results from wallet interactions (e.g., approve → swap flows).
+// Agents that call TriggerWalletTx should implement this to receive the user's
+// tx_result response with status updates (broadcasted, confirmed, rejected, failed).
+type TxResultHandler interface {
+	HandleTxResult(ctx context.Context, result TxResultData, room string, sender MessageSender) error
+}
+
 // MessageSender interface allows agents to send messages during task execution
 type MessageSender interface {
 	// SendMessage sends a message with content (backward compatibility - STRING type)
