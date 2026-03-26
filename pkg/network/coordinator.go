@@ -332,6 +332,7 @@ func (t *TaskCoordinator) HandleTxResultMessage(msg *types.Message) error {
 			taskID:          resultData.TaskID,
 			protocolHandler: t.protocolHandler,
 			room:            room,
+			requesterWallet: msg.From,
 		}
 
 		if err := txResultHandler.HandleTxResult(ctx, resultData, room, messageSender); err != nil {
