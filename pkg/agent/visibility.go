@@ -20,7 +20,7 @@ import (
 //
 // Parameters:
 //   - backendURL: The Teneo backend URL (e.g. "https://backend.developer.chatroom.teneo-protocol.ai")
-//   - agentID: The agent's ID as registered in the database
+//   - agentID: The agent's ID from your metadata JSON (agentId field)
 //   - creatorWallet: The Ethereum wallet address that owns the agent's NFT
 //   - tokenID: The NFT token ID for on-chain ownership verification
 //
@@ -84,7 +84,7 @@ func SubmitForReview(backendURL, agentID, creatorWallet string, tokenID uint64) 
 //
 // Parameters:
 //   - backendURL: The Teneo backend URL (e.g. "https://backend.developer.chatroom.teneo-protocol.ai")
-//   - agentID: The agent's ID as registered in the database
+//   - agentID: The agent's ID from your metadata JSON (agentId field)
 //   - creatorWallet: The Ethereum wallet address that owns the agent's NFT
 //   - tokenID: The NFT token ID for on-chain ownership verification
 //
