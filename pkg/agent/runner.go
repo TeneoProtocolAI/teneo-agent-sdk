@@ -524,6 +524,9 @@ func (a *EnhancedAgent) Run() error {
 // The agent must have been deployed, connected at least once, and be currently online.
 // Review can take up to 72 hours. The agent must stay online during review.
 func (a *EnhancedAgent) SubmitForReview() error {
+	if a.agentID == "" {
+		return fmt.Errorf("agent ID is required for submit-for-review: set AgentID on EnhancedAgentConfig or Config.AgentID")
+	}
 	tokenID, err := a.getTokenID()
 	if err != nil {
 		return err
@@ -534,6 +537,9 @@ func (a *EnhancedAgent) SubmitForReview() error {
 // WithdrawPublic withdraws a public agent back to private visibility.
 // Only works on agents that are currently public.
 func (a *EnhancedAgent) WithdrawPublic() error {
+	if a.agentID == "" {
+		return fmt.Errorf("agent ID is required for withdraw-public: set AgentID on EnhancedAgentConfig or Config.AgentID")
+	}
 	tokenID, err := a.getTokenID()
 	if err != nil {
 		return err
