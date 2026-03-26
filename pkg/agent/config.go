@@ -13,6 +13,7 @@ import (
 // Config represents the configuration for a Teneo agent
 type Config struct {
 	// Basic agent info
+	AgentID      string   `json:"agent_id"`
 	Name         string   `json:"name"`
 	Description  string   `json:"description"`
 	Image        string   `json:"image"`
@@ -102,6 +103,9 @@ func (c *Config) Validate() error {
 
 // LoadFromEnv loads configuration from environment variables
 func (c *Config) LoadFromEnv() error {
+	if agentID := os.Getenv("AGENT_ID"); agentID != "" {
+		c.AgentID = agentID
+	}
 	if name := os.Getenv("AGENT_NAME"); name != "" {
 		c.Name = name
 	}

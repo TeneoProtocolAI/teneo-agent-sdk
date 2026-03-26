@@ -20,7 +20,7 @@ import (
 //
 // Parameters:
 //   - backendURL: The Teneo backend URL (e.g. "https://backend.developer.chatroom.teneo-protocol.ai")
-//   - agentName: The agent's name as registered (used to derive the agent ID)
+//   - agentID: The agent's ID as registered in the database
 //   - creatorWallet: The Ethereum wallet address that owns the agent's NFT
 //   - tokenID: The NFT token ID for on-chain ownership verification
 //
@@ -28,7 +28,7 @@ import (
 //
 //	err := agent.SubmitForReview(
 //	    "https://backend.developer.chatroom.teneo-protocol.ai",
-//	    "Interior Architecture Advisor",
+//	    "my-agent-id",
 //	    "0xYourWalletAddress",
 //	    42,
 //	)
@@ -42,12 +42,7 @@ import (
 //	    "creator_wallet": "0xYourWalletAddress",
 //	    "token_id": 42
 //	}
-//
-// The agent ID is derived from the agent name: lowercased, spaces replaced with hyphens,
-// non-alphanumeric characters removed. For example "Interior Architecture Advisor" becomes
-// "interior-architecture-advisor".
-func SubmitForReview(backendURL, agentName, creatorWallet string, tokenID uint64) error {
-	agentID := generateAgentID(agentName)
+func SubmitForReview(backendURL, agentID, creatorWallet string, tokenID uint64) error {
 	backendURL = strings.TrimRight(backendURL, "/")
 
 	reqBody, err := json.Marshal(map[string]interface{}{
@@ -89,7 +84,7 @@ func SubmitForReview(backendURL, agentName, creatorWallet string, tokenID uint64
 //
 // Parameters:
 //   - backendURL: The Teneo backend URL (e.g. "https://backend.developer.chatroom.teneo-protocol.ai")
-//   - agentName: The agent's name as registered (used to derive the agent ID)
+//   - agentID: The agent's ID as registered in the database
 //   - creatorWallet: The Ethereum wallet address that owns the agent's NFT
 //   - tokenID: The NFT token ID for on-chain ownership verification
 //
@@ -97,7 +92,7 @@ func SubmitForReview(backendURL, agentName, creatorWallet string, tokenID uint64
 //
 //	err := agent.WithdrawPublic(
 //	    "https://backend.developer.chatroom.teneo-protocol.ai",
-//	    "Interior Architecture Advisor",
+//	    "my-agent-id",
 //	    "0xYourWalletAddress",
 //	    42,
 //	)
@@ -111,8 +106,7 @@ func SubmitForReview(backendURL, agentName, creatorWallet string, tokenID uint64
 //	    "creator_wallet": "0xYourWalletAddress",
 //	    "token_id": 42
 //	}
-func WithdrawPublic(backendURL, agentName, creatorWallet string, tokenID uint64) error {
-	agentID := generateAgentID(agentName)
+func WithdrawPublic(backendURL, agentID, creatorWallet string, tokenID uint64) error {
 	backendURL = strings.TrimRight(backendURL, "/")
 
 	reqBody, err := json.Marshal(map[string]interface{}{
