@@ -25,21 +25,22 @@ import (
 
 // EnhancedAgent represents a fully functional Teneo network agent with all capabilities
 type EnhancedAgent struct {
-	config          *Config
-	agentHandler    types.AgentHandler
-	authManager     *auth.Manager
-	networkClient   *network.NetworkClient
-	protocolHandler *network.ProtocolHandler
-	taskCoordinator *network.TaskCoordinator
-	healthServer    *health.Server
-	agentCache      cache.AgentCache
-	backendURL      string
+	config               *Config
+	agentHandler         types.AgentHandler
+	authManager          *auth.Manager
+	networkClient        *network.NetworkClient
+	protocolHandler      *network.ProtocolHandler
+	taskCoordinator      *network.TaskCoordinator
+	healthServer         *health.Server
+	agentCache           cache.AgentCache
+	backendURL           string
+	agentID              string
 	submitForReviewOnRun bool
-	running         bool
-	startTime       time.Time
-	mu              sync.RWMutex
-	ctx             context.Context
-	cancel          context.CancelFunc
+	running              bool
+	startTime            time.Time
+	mu                   sync.RWMutex
+	ctx                  context.Context
+	cancel               context.CancelFunc
 }
 
 // EnhancedAgentConfig represents configuration for the enhanced agent
@@ -105,10 +106,12 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 		// Use the new secure deploy flow with authentication and database persistence
 		log.Printf("🚀 Deploying agent using secure SDK flow: %s", config.Config.Name)
 
-		// Generate agent ID from name if not provided
 		agentID := config.AgentID
 		if agentID == "" {
-			agentID = generateAgentID(config.Config.Name)
+			agentID = config.Config.AgentID
+		}
+		if agentID == "" {
+			return nil, fmt.Errorf("agent_id is required: set AgentID on EnhancedAgentConfig or Config.AgentID")
 		}
 
 		// Build capabilities JSON
@@ -137,7 +140,7 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 			ShortDescription: config.Config.ShortDescription,
 			TutorialURL:      config.Config.TutorialURL,
 			StateFilePath:    config.StateFilePath,
-			MetadataVersion:  "2.3.0",
+			MetadataVersion:  "2.4.0",
 		}
 
 		// Execute deployment
@@ -164,7 +167,13 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 			return nil, fmt.Errorf("failed to create NFT minter: %w", err)
 		}
 
-		agentID := generateAgentID(config.Config.Name)
+		agentID := config.AgentID
+		if agentID == "" {
+			agentID = config.Config.AgentID
+		}
+		if agentID == "" {
+			return nil, fmt.Errorf("agent_id is required: set AgentID on EnhancedAgentConfig or Config.AgentID")
+		}
 		metadata := nft.AgentMetadata{
 			Name:         config.Config.Name,
 			Description:  config.Config.Description,
@@ -211,7 +220,7 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 			Description:  config.Config.Description,
 			Image:        config.Config.Image,
 			Capabilities: config.Config.ResolveCapabilities(),
-			AgentID:      generateAgentID(config.Config.Name),
+			AgentID:      config.AgentID,
 		}
 
 		hash := nft.GenerateMetadataHash(metadata)
@@ -241,10 +250,17 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// Resolve agent ID
+	resolvedAgentID := config.AgentID
+	if resolvedAgentID == "" {
+		resolvedAgentID = config.Config.AgentID
+	}
+
 	agent := &EnhancedAgent{
 		config:               config.Config,
 		agentHandler:         config.AgentHandler,
 		backendURL:           config.BackendURL,
+		agentID:              resolvedAgentID,
 		submitForReviewOnRun: config.SubmitForReview,
 		ctx:                  ctx,
 		cancel:               cancel,
@@ -508,21 +524,27 @@ func (a *EnhancedAgent) Run() error {
 // The agent must have been deployed, connected at least once, and be currently online.
 // Review can take up to 72 hours. The agent must stay online during review.
 func (a *EnhancedAgent) SubmitForReview() error {
+	if a.agentID == "" {
+		return fmt.Errorf("agent ID is required for submit-for-review: set AgentID on EnhancedAgentConfig or Config.AgentID")
+	}
 	tokenID, err := a.getTokenID()
 	if err != nil {
 		return err
 	}
-	return SubmitForReview(a.backendURL, a.config.Name, a.authManager.GetAddress(), tokenID)
+	return SubmitForReview(a.backendURL, a.agentID, a.authManager.GetAddress(), tokenID)
 }
 
 // WithdrawPublic withdraws a public agent back to private visibility.
 // Only works on agents that are currently public.
 func (a *EnhancedAgent) WithdrawPublic() error {
+	if a.agentID == "" {
+		return fmt.Errorf("agent ID is required for withdraw-public: set AgentID on EnhancedAgentConfig or Config.AgentID")
+	}
 	tokenID, err := a.getTokenID()
 	if err != nil {
 		return err
 	}
-	return WithdrawPublic(a.backendURL, a.config.Name, a.authManager.GetAddress(), tokenID)
+	return WithdrawPublic(a.backendURL, a.agentID, a.authManager.GetAddress(), tokenID)
 }
 
 func (a *EnhancedAgent) getTokenID() (uint64, error) {
@@ -677,21 +699,6 @@ func (a *EnhancedAgent) UpdateCapabilities(capabilities []string) {
 	}
 
 	log.Printf("🔄 Updated capabilities: %v", capabilities)
-}
-
-// generateAgentID generates a unique agent ID from the agent name
-func generateAgentID(name string) string {
-	// Convert to lowercase and replace spaces with hyphens
-	agentID := strings.ToLower(name)
-	agentID = strings.ReplaceAll(agentID, " ", "-")
-	// Remove any characters that aren't lowercase letters, numbers, or hyphens
-	result := ""
-	for _, char := range agentID {
-		if (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '-' {
-			result += string(char)
-		}
-	}
-	return result
 }
 
 // getAddressFromPrivateKey derives the Ethereum address from a private key

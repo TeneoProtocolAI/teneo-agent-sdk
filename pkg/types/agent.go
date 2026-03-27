@@ -31,6 +31,14 @@ type AgentCleaner interface {
 	Cleanup(ctx context.Context) error
 }
 
+// TxResultHandler is an optional interface for agents that need to handle
+// transaction results from wallet interactions (e.g., approve → swap flows).
+// Agents that call TriggerWalletTx should implement this to receive the user's
+// tx_result response with status updates (broadcasted, confirmed, rejected, failed).
+type TxResultHandler interface {
+	HandleTxResult(ctx context.Context, result TxResultData, room string, sender MessageSender) error
+}
+
 // MessageSender interface allows agents to send messages during task execution
 type MessageSender interface {
 	// SendMessage sends a message with content (backward compatibility - STRING type)
@@ -47,6 +55,10 @@ type MessageSender interface {
 	SendErrorMessage(content string, errorCode string, details map[string]interface{}) error
 	// TriggerWalletTx requests the user to sign a wallet transaction
 	TriggerWalletTx(tx TxRequest, description string, optional bool) error
+	// GetRequesterWalletAddress returns the wallet address of the user who initiated the task.
+	// Used for operations that must route funds to the requester (e.g. swap output).
+	// Returns empty string if the requester is unknown (e.g. task from coordinator).
+	GetRequesterWalletAddress() string
 }
 
 // StreamingTaskHandler is an optional interface for agents that need to send multiple messages during task execution

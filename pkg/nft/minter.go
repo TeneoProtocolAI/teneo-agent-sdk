@@ -31,12 +31,12 @@ import (
 
 // AgentMetadata represents the metadata for an agent NFT
 type AgentMetadata struct {
-	Name         string                        `json:"name"`
-	Description  string                        `json:"description"`
-	Image        string                        `json:"image"`
-	AgentID      string                        `json:"agent_id"`
-	Capabilities []sdktypes.Capability            `json:"capabilities"`
-	Properties   map[string]interface{}        `json:"properties,omitempty"`
+	Name         string                 `json:"name"`
+	Description  string                 `json:"description"`
+	Image        string                 `json:"image"`
+	AgentID      string                 `json:"agent_id"`
+	Capabilities []sdktypes.Capability  `json:"capabilities"`
+	Properties   map[string]interface{} `json:"properties,omitempty"`
 }
 
 // IPFSUploadResponse represents the response from IPFS upload
@@ -400,7 +400,7 @@ func (m *NFTMinter) parsePayloadAndHash(rawJSON []byte) (*sdkAgentPayload, []byt
 		return nil, nil, "", fmt.Errorf("metadata json missing required field: categories")
 	}
 	if config.MetadataVersion == "" {
-		config.MetadataVersion = "2.3.0"
+		config.MetadataVersion = "2.4.0"
 	}
 
 	// Compute v3 canonical config hash (must match server's GenerateConfigHash)

@@ -87,7 +87,7 @@ func TestParsePayloadAndHash(t *testing.T) {
 		],
 		"nlp_fallback": false,
 		"categories": ["Utilities"],
-		"metadata_version": "2.3.0"
+		"metadata_version": "2.4.0"
 	}`
 
 	config, canonicalJSON, configHash, err := minter.parsePayloadAndHash([]byte(metadata))
@@ -259,7 +259,7 @@ func TestGaslessDeployFlow(t *testing.T) {
 		"commands": [{"trigger": "ping", "description": "Ping", "pricePerUnit": 0, "priceType": "task-transaction", "taskUnit": "per-query"}],
 		"nlp_fallback": false,
 		"categories": ["Utilities"],
-		"metadata_version": "2.3.0"
+		"metadata_version": "2.4.0"
 	}`
 
 	result, err := minter.MintOrResumeFromJSON([]byte(metadata))
@@ -475,7 +475,7 @@ func testHashStartsWithV4(t *testing.T) {
 		"commands": [],
 		"nlp_fallback": false,
 		"categories": ["AI"],
-		"metadata_version": "2.3.0"
+		"metadata_version": "2.4.0"
 	}`
 	_, _, hash, err := minter.parsePayloadAndHash([]byte(metadata))
 	if err != nil {
