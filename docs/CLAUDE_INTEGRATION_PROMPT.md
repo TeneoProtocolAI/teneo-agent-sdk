@@ -85,7 +85,7 @@ When creating the agent metadata JSON for minting, **always reference the exampl
 Key rules:
 - Use **snake_case** for field names: `agent_id`, `agent_type`, `nlp_fallback`
 - `capabilities` must be an array of **objects** with `name` and `description` fields (NOT strings)
-- `metadata_version` is **required** (currently `"2.3.0"`)
+- `metadata_version` is **required** (currently `"2.4.0"`)
 - `categories` is **required** (1-2 string items)
 
 ## Configuration Guidelines

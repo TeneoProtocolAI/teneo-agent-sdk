@@ -78,6 +78,14 @@ const (
 	MessageTypeTxResult        = "tx_result"
 )
 
+// TxResultStatus constants
+const (
+	TxStatusBroadcasted = "broadcasted"
+	TxStatusConfirmed   = "confirmed"
+	TxStatusRejected    = "rejected"
+	TxStatusFailed      = "failed"
+)
+
 // AuthMessage represents an authentication message
 type AuthMessage struct {
 	Type       string `json:"type"`
@@ -173,18 +181,18 @@ type TaskResultMessage struct {
 
 // AgentInfo represents basic agent information
 type AgentInfo struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	Capabilities []string `json:"capabilities"`
-	Room         string   `json:"room"`
-	Status       string   `json:"status"`
+	ID           string       `json:"id"`
+	Name         string       `json:"name"`
+	Capabilities []Capability `json:"capabilities"`
+	Room         string       `json:"room"`
+	Status       string       `json:"status"`
 }
 
 // AgentSelectedMessage represents an agent selection message
 type AgentSelectedMessage struct {
-	AgentID      string   `json:"agent_id"`
-	AgentName    string   `json:"agent_name"`
-	Capabilities []string `json:"capabilities"`
+	AgentID      string       `json:"agent_id"`
+	AgentName    string       `json:"agent_name"`
+	Capabilities []Capability `json:"capabilities"`
 	Reasoning    string   `json:"reasoning"`
 	UserRequest  string   `json:"user_request"`
 }
@@ -242,10 +250,12 @@ type TriggerWalletTxData struct {
 	Optional    bool      `json:"optional"`
 }
 
-// TxResultData is the payload received when user responds to trigger_mm_tx
+// TxResultData is the payload received when user responds to a trigger_wallet_tx request.
+// Status is one of: "broadcasted" (tx sent, hash available), "confirmed" (on-chain receipt),
+// "rejected" (user declined), or "failed" (error). Use TxStatus* constants.
 type TxResultData struct {
 	TaskID string `json:"task_id"`
 	TxHash string `json:"tx_hash,omitempty"`
-	Status string `json:"status"`
+	Status string `json:"status"` // "broadcasted" | "confirmed" | "rejected" | "failed"
 	Error  string `json:"error,omitempty"`
 }

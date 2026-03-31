@@ -7,16 +7,16 @@ import (
 
 // MintRequest represents a request to mint an agent NFT
 type MintRequest struct {
-	Name           string   `json:"name"`
-	Description    string   `json:"description"`
-	Capabilities   []string `json:"capabilities"`
+	Name           string       `json:"name"`
+	Description    string       `json:"description"`
+	Capabilities   []Capability `json:"capabilities"`
 	ContactInfo    string   `json:"contact_info"`
 	PricingModel   string   `json:"pricing_model"`
 	InterfaceType  string   `json:"interface_type"`
 	ResponseFormat string   `json:"response_format"`
 	Version        string   `json:"version"`
 	SDKVersion     string   `json:"sdk_version"`
-	ImageURI       string   `json:"image_uri,omitempty"`
+	Image          string   `json:"image,omitempty"`
 }
 
 // Validate validates the mint request
@@ -117,9 +117,9 @@ type BusinessCard struct {
 
 // AgentMetadata represents the metadata stored in an agent's NFT
 type AgentMetadata struct {
-	Name           string     `json:"name"`
-	Description    string     `json:"description"`
-	Capabilities   []string   `json:"capabilities"`
+	Name           string       `json:"name"`
+	Description    string       `json:"description"`
+	Capabilities   []Capability `json:"capabilities"`
 	ContactInfo    string     `json:"contact_info"`
 	PricingModel   string     `json:"pricing_model"`
 	InterfaceType  string     `json:"interface_type"`
@@ -128,7 +128,7 @@ type AgentMetadata struct {
 	IsActive       bool       `json:"is_active"`
 	Version        string     `json:"version"`
 	SDKVersion     string     `json:"sdk_version"`
-	ImageURI       string     `json:"image_uri,omitempty"`
+	Image          string     `json:"image,omitempty"`
 }
 
 // FoundationApprovalResult represents the result of a foundation approval request
@@ -143,7 +143,7 @@ type FoundationApprovalResult struct {
 
 // NFTSearchRequest represents a request to search for NFTs
 type NFTSearchRequest struct {
-	Capabilities []string `json:"capabilities,omitempty"`
+	Capabilities []Capability `json:"capabilities,omitempty"`
 	Name         string   `json:"name,omitempty"`
 	Owner        string   `json:"owner,omitempty"`
 	IsActive     *bool    `json:"is_active,omitempty"`

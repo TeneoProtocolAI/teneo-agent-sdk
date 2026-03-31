@@ -78,6 +78,21 @@ func (t *TestMessageSender) GetMessages() []string {
 	return t.messages
 }
 
+// SendErrorMessage implements error message sending
+func (t *TestMessageSender) SendErrorMessage(content string, errorCode string, details map[string]interface{}) error {
+	return t.sendStandardizedMessage(types.StandardMessageTypeString, content)
+}
+
+// TriggerWalletTx implements wallet transaction triggering (no-op in tests)
+func (t *TestMessageSender) TriggerWalletTx(tx types.TxRequest, description string, optional bool) error {
+	return nil
+}
+
+// GetRequesterWalletAddress returns empty string for tests
+func (t *TestMessageSender) GetRequesterWalletAddress() string {
+	return ""
+}
+
 // TestAgent implements StreamingTaskHandler for testing
 type TestAgent struct{}
 

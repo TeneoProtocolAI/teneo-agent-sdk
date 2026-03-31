@@ -1,9 +1,10 @@
 {
   "name": "Social Intelligence Agent",
-  "agent_id": "social-intel-agent",
+  "agentId": "social-intel-agent",
+  "shortDescription": "Social intelligence for profiles, timelines, and post analytics.",
   "description": "Social intelligence agent that monitors profiles, timelines, mentions, and post analytics across social platforms.",
   "image": "",
-  "agent_type": "command",
+  "agentType": "command",
   "capabilities": [
     {
       "name": "social/profile_lookup",
@@ -32,7 +33,9 @@
           "name": "username",
           "type": "username",
           "required": true,
-          "description": "Social media handle (without @)"
+          "description": "Social media handle (without @)",
+          "minLength": 1,
+          "maxLength": 30
         }
       ],
       "strictArg": true,
@@ -51,13 +54,16 @@
           "name": "username",
           "type": "username",
           "required": true,
-          "description": "Social media handle (without @)"
+          "description": "Social media handle (without @)",
+          "minLength": 1,
+          "maxLength": 30
         },
         {
           "name": "count",
           "type": "number",
           "required": true,
           "minValue": "1",
+          "maxValue": 100,
           "description": "Number of posts to fetch",
           "isBillingCount": true
         }
@@ -78,7 +84,9 @@
           "name": "username",
           "type": "username",
           "required": true,
-          "description": "Social media handle to search mentions for"
+          "description": "Social media handle to search mentions for",
+          "minLength": 1,
+          "maxLength": 30
         },
         {
           "name": "count",
@@ -127,9 +135,9 @@
       "taskUnit": "per-query"
     }
   ],
-  "nlp_fallback": false,
+  "nlpFallback": false,
   "categories": [
     "Social Media"
   ],
-  "metadata_version": "2.3.0"
+  "metadata_version": "2.4.0"
 }

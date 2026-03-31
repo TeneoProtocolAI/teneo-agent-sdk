@@ -1,9 +1,10 @@
 {
   "name": "Location Intelligence Agent",
-  "agent_id": "location-intel-agent",
+  "agentId": "location-intel-agent",
+  "shortDescription": "Place discovery, summaries, and review extraction for travel and business research.",
   "description": "Location intelligence agent that provides place discovery, summaries, and review extraction for travel and business research.",
   "image": "",
-  "agent_type": "command",
+  "agentType": "command",
   "capabilities": [
     {
       "name": "location/place_search",
@@ -104,9 +105,9 @@
       "taskUnit": "per-query"
     }
   ],
-  "nlp_fallback": false,
+  "nlpFallback": false,
   "categories": [
     "Travel"
   ],
-  "metadata_version": "2.3.0"
+  "metadata_version": "2.4.0"
 }

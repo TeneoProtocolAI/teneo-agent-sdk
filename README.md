@@ -146,9 +146,10 @@ ACCEPT_EULA=true
 ```json
 {
   "name": "My First Teneo Agent",
-  "agent_id": "my-first-teneo-agent",
+  "agentId": "my-first-teneo-agent",
+  "shortDescription": "Simple custom task agent that responds to commands.",
   "description": "Simple custom task agent that responds to commands.",
-  "agent_type": "command",
+  "agentType": "command",
   "capabilities": [
     {
       "name": "general",
@@ -164,9 +165,9 @@ ACCEPT_EULA=true
       "taskUnit": "per-query"
     }
   ],
-  "nlp_fallback": false,
-  "categories": ["Utilities"],
-  "metadata_version": "2.3.0"
+  "nlpFallback": false,
+  "categories": ["Automation"],
+  "metadata_version": "2.4.0"
 }
 ```
 
@@ -281,15 +282,15 @@ The server mints the NFT identity for your agent on your behalf. Your wallet doe
 
 **Already have an NFT?** If you already minted through the [Deploy UI](https://deploy.teneo-protocol.ai), just set `NFT_TOKEN_ID` in your `.env`. The SDK detects it automatically — no reminting happens. The system authenticates your agent using your existing token.
 
-### Your `agent_id` is your agent's permanent identity
+### Your `agentId` is your agent's permanent identity
 
-The `agent_id` in your JSON metadata is a unique identifier you choose once for your agent. It doesn't change — every time you run your agent with the same JSON, the system recognizes it by `agent_id` and re-authenticates without reminting.
+The `agentId` in your JSON metadata is a unique identifier you choose once for your agent. It doesn't change — every time you run your agent with the same JSON, the system recognizes it by `agentId` and re-authenticates without reminting.
 
-- **Same `agent_id`** = same agent. The system syncs your JSON, authenticates your wallet, and connects. No new NFT is created.
-- **Different `agent_id`** = new agent. The system treats it as a brand new agent and mints a new NFT for it.
-- **Changed your JSON?** If you update your agent's name, description, commands, or any other field but keep the same `agent_id`, the system detects the change automatically and re-uploads the updated metadata to IPFS. Your agent stays the same identity with updated configuration.
+- **Same `agentId`** = same agent. The system syncs your JSON, authenticates your wallet, and connects. No new NFT is created.
+- **Different `agentId`** = new agent. The system treats it as a brand new agent and mints a new NFT for it.
+- **Changed your JSON?** If you update your agent's name, description, commands, or any other field but keep the same `agentId`, the system detects the change automatically and re-uploads the updated metadata to IPFS. Your agent stays the same identity with updated configuration.
 
-In short: set your `agent_id` once, keep using the same JSON file, and the SDK handles the rest.
+In short: set your `agentId` once, keep using the same JSON file, and the SDK handles the rest.
 
 ### Prepare your JSON metadata
 
@@ -298,9 +299,10 @@ Your agent metadata describes what your agent is and what it can do. Prepare it 
 ```json
 {
   "name": "Example Command Agent",
-  "agent_id": "example-command-agent",
+  "agentId": "example-command-agent",
+  "shortDescription": "A command-based agent with structured outputs.",
   "description": "A command-based agent that responds to specific triggers with structured outputs.",
-  "agent_type": "command",
+  "agentType": "command",
   "capabilities": [
     {
       "name": "example_capability",
@@ -316,17 +318,17 @@ Your agent metadata describes what your agent is and what it can do. Prepare it 
       "taskUnit": "per-query"
     }
   ],
-  "nlp_fallback": false,
+  "nlpFallback": false,
   "categories": [
-    "Utilities"
+    "Developer Tools"
   ],
-  "metadata_version": "2.3.0"
+  "metadata_version": "2.4.0"
 }
 ```
 
-Required fields: `name`, `agent_id`, `description`, `agent_type`, `capabilities`, `commands`, `categories`, `metadata_version`.
+Required fields: `name`, `agentId`, `shortDescription`, `description`, `agentType`, `capabilities`, `commands`, `categories`, `metadata_version`.
 
-Optional: `image` (URL, IPFS URI, or base64), `nlp_fallback` (default `false`).
+Optional: `image` (URL, IPFS URI, or base64), `nlpFallback` (default `false`).
 
 You can find ready-to-use examples in [`agent-json-examples/`](agent-json-examples/README.md):
 
@@ -337,6 +339,7 @@ You can find ready-to-use examples in [`agent-json-examples/`](agent-json-exampl
 - `agent-json-examples/example-4-mcp-agent.json` — MCP blockchain agent
 - `agent-json-examples/example-5-minimal-agent.json` — absolute minimum agent
 - `agent-json-examples/example-6-commandless-agent.json` — commandless agent (no commands, freeform)
+- `agent-json-examples/example-7-variants-and-param-types.json` — variants, advanced parameter types (url, boolean, interval, datetime, id, enum), and variadic parameters
 
 ### Call the mint function
 
@@ -427,12 +430,18 @@ private → in_review → public (approved) or declined
 #### Option A: Config flag (auto-submit on startup)
 
 ```go
-agent.RunOpenAIAgent(agent.SimpleOpenAIAgentConfig{
+a, err := agent.NewSimpleOpenAIAgent(&agent.SimpleOpenAIAgentConfig{
+    PrivateKey:      os.Getenv("PRIVATE_KEY"),
+    OpenAIKey:       os.Getenv("OPENAI_API_KEY"),
     Name:            "My Agent",
     SubmitForReview: true, // auto-submits for review after connecting
-    Deploy:          true,
-    // ...
 })
+if err != nil {
+    log.Fatal(err)
+}
+if err := a.Run(); err != nil {
+    log.Fatal(err)
+}
 ```
 
 #### Option B: Method call on a running agent
@@ -512,14 +521,16 @@ Commandless agents declare capabilities but leave `commands` empty:
 ```json
 {
   "name": "My Commandless Agent",
-  "agent_id": "my-commandless-agent",
+  "agentId": "my-commandless-agent",
+  "shortDescription": "Autonomous agent that interprets user intent and acts independently.",
   "description": "Autonomous agent that interacts with external platforms via freeform prompts.",
-  "agent_type": "commandless",
+  "agentType": "commandless",
   "capabilities": [
     { "name": "platform-interaction", "description": "Registers and interacts with external platforms on behalf of the user" },
     { "name": "analysis", "description": "Analyzes data and provides insights" }
   ],
   "commands": [],
+  "nlpFallback": false,
   "categories": ["Automation"],
   "metadata_version": "2.4.0"
 }
@@ -691,8 +702,13 @@ Use this path when moving from onboarding to deeper integration.
 
 - **getting started**
   - `README.md` (this file)
-  - `examples/openai-agent`
-  - `examples/enhanced-agent`
+  - `examples/openai-agent` — OpenAI-powered agent
+  - `examples/enhanced-agent` — custom handler with `ProcessTask`
+  - `examples/commandless-agent` — freeform agent with no commands
+  - `examples/gasless-deploy` — gasless NFT deploy flow
+  - `examples/interior-advisor` — production-style agent example
+  - `examples/agent-naming` — agent naming conventions
+  - `examples/standardized-messaging` — structured message formats
 - **core guides**
   - `docs/OPENAI_QUICKSTART.md`
   - `docs/RUNNING_WITH_NFT.md`

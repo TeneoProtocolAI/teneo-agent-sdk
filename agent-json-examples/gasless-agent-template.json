@@ -1,9 +1,10 @@
 {
   "name": "My Agent Name",
-  "agent_id": "my-agent-name",
+  "agentId": "my-agent-name",
+  "shortDescription": "Brief one-line summary of what your agent does.",
   "description": "A clear description of what this agent does (minimum 10 characters).",
   "image": "",
-  "agent_type": "command",
+  "agentType": "command",
   "capabilities": [
     {
       "name": "example_capability",
@@ -31,9 +32,9 @@
       "taskUnit": "per-query"
     }
   ],
-  "nlp_fallback": false,
+  "nlpFallback": false,
   "categories": [
     "Developer Tools"
   ],
-  "metadata_version": "2.3.0"
+  "metadata_version": "2.4.0"
 }

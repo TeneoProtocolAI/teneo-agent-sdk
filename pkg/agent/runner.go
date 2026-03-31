@@ -25,21 +25,22 @@ import (
 
 // EnhancedAgent represents a fully functional Teneo network agent with all capabilities
 type EnhancedAgent struct {
-	config          *Config
-	agentHandler    types.AgentHandler
-	authManager     *auth.Manager
-	networkClient   *network.NetworkClient
-	protocolHandler *network.ProtocolHandler
-	taskCoordinator *network.TaskCoordinator
-	healthServer    *health.Server
-	agentCache      cache.AgentCache
-	backendURL      string
+	config               *Config
+	agentHandler         types.AgentHandler
+	authManager          *auth.Manager
+	networkClient        *network.NetworkClient
+	protocolHandler      *network.ProtocolHandler
+	taskCoordinator      *network.TaskCoordinator
+	healthServer         *health.Server
+	agentCache           cache.AgentCache
+	backendURL           string
+	agentID              string
 	submitForReviewOnRun bool
-	running         bool
-	startTime       time.Time
-	mu              sync.RWMutex
-	ctx             context.Context
-	cancel          context.CancelFunc
+	running              bool
+	startTime            time.Time
+	mu                   sync.RWMutex
+	ctx                  context.Context
+	cancel               context.CancelFunc
 }
 
 // EnhancedAgentConfig represents configuration for the enhanced agent
@@ -105,14 +106,16 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 		// Use the new secure deploy flow with authentication and database persistence
 		log.Printf("🚀 Deploying agent using secure SDK flow: %s", config.Config.Name)
 
-		// Generate agent ID from name if not provided
 		agentID := config.AgentID
 		if agentID == "" {
-			agentID = generateAgentID(config.Config.Name)
+			agentID = config.Config.AgentID
+		}
+		if agentID == "" {
+			return nil, fmt.Errorf("agent_id is required: set AgentID on EnhancedAgentConfig or Config.AgentID")
 		}
 
 		// Build capabilities JSON
-		capabilitiesJSON, err := buildCapabilitiesJSON(config.Config.Capabilities)
+		capabilitiesJSON, err := buildCapabilitiesJSON(config.Config)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build capabilities JSON: %w", err)
 		}
@@ -125,17 +128,19 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 
 		// Create deploy configuration
 		deployCfg := deploy.DeployConfig{
-			BackendURL:      config.BackendURL,
-			RPCEndpoint:     config.RPCEndpoint,
-			PrivateKey:      config.Config.PrivateKey,
-			AgentID:         agentID,
-			AgentName:       config.Config.Name,
-			Description:     config.Config.Description,
-			Image:           config.Config.Image,
-			AgentType:       agentType,
-			Capabilities:    capabilitiesJSON,
-			StateFilePath:   config.StateFilePath,
-			MetadataVersion: "2.3.0",
+			BackendURL:       config.BackendURL,
+			RPCEndpoint:      config.RPCEndpoint,
+			PrivateKey:       config.Config.PrivateKey,
+			AgentID:          agentID,
+			AgentName:        config.Config.Name,
+			Description:      config.Config.Description,
+			Image:            config.Config.Image,
+			AgentType:        agentType,
+			Capabilities:     capabilitiesJSON,
+			ShortDescription: config.Config.ShortDescription,
+			TutorialURL:      config.Config.TutorialURL,
+			StateFilePath:    config.StateFilePath,
+			MetadataVersion:  "2.4.0",
 		}
 
 		// Execute deployment
@@ -162,12 +167,18 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 			return nil, fmt.Errorf("failed to create NFT minter: %w", err)
 		}
 
-		agentID := generateAgentID(config.Config.Name)
+		agentID := config.AgentID
+		if agentID == "" {
+			agentID = config.Config.AgentID
+		}
+		if agentID == "" {
+			return nil, fmt.Errorf("agent_id is required: set AgentID on EnhancedAgentConfig or Config.AgentID")
+		}
 		metadata := nft.AgentMetadata{
 			Name:         config.Config.Name,
 			Description:  config.Config.Description,
 			Image:        config.Config.Image,
-			Capabilities: config.Config.Capabilities,
+			Capabilities: config.Config.ResolveCapabilities(),
 			AgentID:      agentID,
 		}
 
@@ -208,8 +219,8 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 			Name:         config.Config.Name,
 			Description:  config.Config.Description,
 			Image:        config.Config.Image,
-			Capabilities: config.Config.Capabilities,
-			AgentID:      generateAgentID(config.Config.Name),
+			Capabilities: config.Config.ResolveCapabilities(),
+			AgentID:      config.AgentID,
 		}
 
 		hash := nft.GenerateMetadataHash(metadata)
@@ -239,10 +250,17 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// Resolve agent ID
+	resolvedAgentID := config.AgentID
+	if resolvedAgentID == "" {
+		resolvedAgentID = config.Config.AgentID
+	}
+
 	agent := &EnhancedAgent{
 		config:               config.Config,
 		agentHandler:         config.AgentHandler,
 		backendURL:           config.BackendURL,
+		agentID:              resolvedAgentID,
 		submitForReviewOnRun: config.SubmitForReview,
 		ctx:                  ctx,
 		cancel:               cancel,
@@ -506,21 +524,27 @@ func (a *EnhancedAgent) Run() error {
 // The agent must have been deployed, connected at least once, and be currently online.
 // Review can take up to 72 hours. The agent must stay online during review.
 func (a *EnhancedAgent) SubmitForReview() error {
+	if a.agentID == "" {
+		return fmt.Errorf("agent ID is required for submit-for-review: set AgentID on EnhancedAgentConfig or Config.AgentID")
+	}
 	tokenID, err := a.getTokenID()
 	if err != nil {
 		return err
 	}
-	return SubmitForReview(a.backendURL, a.config.Name, a.authManager.GetAddress(), tokenID)
+	return SubmitForReview(a.backendURL, a.agentID, a.authManager.GetAddress(), tokenID)
 }
 
 // WithdrawPublic withdraws a public agent back to private visibility.
 // Only works on agents that are currently public.
 func (a *EnhancedAgent) WithdrawPublic() error {
+	if a.agentID == "" {
+		return fmt.Errorf("agent ID is required for withdraw-public: set AgentID on EnhancedAgentConfig or Config.AgentID")
+	}
 	tokenID, err := a.getTokenID()
 	if err != nil {
 		return err
 	}
-	return WithdrawPublic(a.backendURL, a.config.Name, a.authManager.GetAddress(), tokenID)
+	return WithdrawPublic(a.backendURL, a.agentID, a.authManager.GetAddress(), tokenID)
 }
 
 func (a *EnhancedAgent) getTokenID() (uint64, error) {
@@ -677,21 +701,6 @@ func (a *EnhancedAgent) UpdateCapabilities(capabilities []string) {
 	log.Printf("🔄 Updated capabilities: %v", capabilities)
 }
 
-// generateAgentID generates a unique agent ID from the agent name
-func generateAgentID(name string) string {
-	// Convert to lowercase and replace spaces with hyphens
-	agentID := strings.ToLower(name)
-	agentID = strings.ReplaceAll(agentID, " ", "-")
-	// Remove any characters that aren't lowercase letters, numbers, or hyphens
-	result := ""
-	for _, char := range agentID {
-		if (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '-' {
-			result += string(char)
-		}
-	}
-	return result
-}
-
 // getAddressFromPrivateKey derives the Ethereum address from a private key
 func getAddressFromPrivateKey(privateKeyHex string) string {
 	// Import crypto package
@@ -710,17 +719,9 @@ func getAddressFromPrivateKey(privateKeyHex string) string {
 	return address.Hex()
 }
 
-// buildCapabilitiesJSON converts a capabilities slice to JSON
-func buildCapabilitiesJSON(capabilities []string) ([]byte, error) {
-	// Convert simple string capabilities to capability objects with name
-	type capabilityObj struct {
-		Name string `json:"name"`
-	}
-
-	capObjs := make([]capabilityObj, len(capabilities))
-	for i, cap := range capabilities {
-		capObjs[i] = capabilityObj{Name: cap}
-	}
-
-	return json.Marshal(capObjs)
+// buildCapabilitiesJSON converts config capabilities to JSON.
+// Uses CapabilityDetails (with descriptions) if available, otherwise
+// falls back to Capabilities string slice for backward compatibility.
+func buildCapabilitiesJSON(config *Config) ([]byte, error) {
+	return json.Marshal(config.ResolveCapabilities())
 }

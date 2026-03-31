@@ -27,16 +27,21 @@ type DeployConfig struct {
 	PrivateKey string // Private key (hex, with or without 0x prefix)
 
 	// Agent Configuration
-	AgentID      string          // Unique agent identifier (lowercase, hyphens allowed)
-	AgentName    string          // Display name for the agent
-	Description  string          // Agent description
-	Image        string          // Image URL or base64 data
-	AgentType    string          // "command", "nlp", or "mcp"
-	Capabilities json.RawMessage // Agent capabilities array
-	Commands     json.RawMessage // Agent commands (optional)
-	NlpFallback  bool            // Enable NLP fallback
+	AgentID         string          // Unique agent identifier (lowercase, hyphens allowed)
+	AgentName       string          // Display name for the agent
+	Description     string          // Agent description
+	Image           string          // Image URL or base64 data
+	AgentType       string          // "command", "nlp", or "mcp"
+	Capabilities    json.RawMessage // Agent capabilities array
+	Commands        json.RawMessage // Agent commands (optional)
+	NlpFallback     bool            // Enable NLP fallback
 	Categories      json.RawMessage // Agent categories (optional)
-	MetadataVersion string          // Metadata version (e.g. "2.3.0")
+	MetadataVersion string          // Metadata version (e.g. "2.4.0")
+
+	// Profile metadata (optional, not included in config hash)
+	ShortDescription string          // Brief one-line summary
+	TutorialURL      string          // YouTube/video tutorial URL
+	FAQItems         json.RawMessage // FAQ entries as [{question, answer}]
 
 	// State Management
 	StateFilePath string // Path to state file (default: .teneo-deploy-state.json)
@@ -57,12 +62,12 @@ type DeployResult struct {
 
 // Deployer handles the full agent deployment flow
 type Deployer struct {
-	config       *DeployConfig
-	httpClient   *HTTPClient
-	chainClient  *ChainClient
+	config        *DeployConfig
+	httpClient    *HTTPClient
+	chainClient   *ChainClient
 	authenticator *Authenticator
-	stateManager *StateManager
-	configHash   string
+	stateManager  *StateManager
+	configHash    string
 }
 
 // NewDeployer creates a new deployer instance
@@ -97,7 +102,15 @@ func NewDeployer(config *DeployConfig) (*Deployer, error) {
 	}
 
 	if config.MetadataVersion == "" {
-		config.MetadataVersion = "2.3.0"
+		config.MetadataVersion = "2.4.0"
+	}
+
+	if len(config.Commands) > 0 {
+		normalizedCommands, err := normalizeCommandsJSON(config.Commands)
+		if err != nil {
+			return nil, fmt.Errorf("failed to normalize commands: %w", err)
+		}
+		config.Commands = normalizedCommands
 	}
 
 	// Create HTTP client
@@ -116,11 +129,11 @@ func NewDeployer(config *DeployConfig) (*Deployer, error) {
 	configHash := computeConfigHash(config)
 
 	return &Deployer{
-		config:       config,
-		httpClient:   httpClient,
+		config:        config,
+		httpClient:    httpClient,
 		authenticator: authenticator,
-		stateManager: stateManager,
-		configHash:   configHash,
+		stateManager:  stateManager,
+		configHash:    configHash,
 	}, nil
 }
 
@@ -331,18 +344,21 @@ func (d *Deployer) authenticate(ctx context.Context) (string, int64, error) {
 // callDeploy calls the deploy endpoint
 func (d *Deployer) callDeploy(ctx context.Context, sessionToken string) (*DeployResponse, error) {
 	req := &DeployRequest{
-		WalletAddress:   d.authenticator.GetAddress(),
-		AgentID:         d.config.AgentID,
-		AgentName:       d.config.AgentName,
-		Description:     d.config.Description,
-		Image:           d.config.Image,
-		AgentType:       d.config.AgentType,
-		Capabilities:    d.config.Capabilities,
-		Commands:        d.config.Commands,
-		NlpFallback:     d.config.NlpFallback,
-		Categories:      d.config.Categories,
-		ConfigHash:      d.configHash,
-		MetadataVersion: d.config.MetadataVersion,
+		WalletAddress:    d.authenticator.GetAddress(),
+		AgentID:          d.config.AgentID,
+		AgentName:        d.config.AgentName,
+		Description:      d.config.Description,
+		Image:            d.config.Image,
+		AgentType:        d.config.AgentType,
+		Capabilities:     d.config.Capabilities,
+		Commands:         d.config.Commands,
+		NlpFallback:      d.config.NlpFallback,
+		Categories:       d.config.Categories,
+		ShortDescription: d.config.ShortDescription,
+		TutorialURL:      d.config.TutorialURL,
+		FAQItems:         d.config.FAQItems,
+		ConfigHash:       d.configHash,
+		MetadataVersion:  d.config.MetadataVersion,
 	}
 
 	return d.httpClient.Deploy(sessionToken, req)
@@ -356,22 +372,25 @@ func (d *Deployer) confirmMint(ctx context.Context, sessionToken string, state *
 	if state.TokenID > math.MaxInt64 {
 		return nil, fmt.Errorf("token ID %d exceeds int64 maximum", state.TokenID)
 	}
-	
+
 	req := &ConfirmMintRequest{
-		AgentID:         state.AgentID,
-		AgentName:       d.config.AgentName,
-		WalletAddress:   state.WalletAddress,
-		TokenID:         int64(state.TokenID),
-		TxHash:          state.TxHash,
-		ConfigHash:      d.configHash,
-		Description:     d.config.Description,
-		Image:           d.config.Image,
-		AgentType:       d.config.AgentType,
-		Capabilities:    d.config.Capabilities,
-		Commands:        d.config.Commands,
-		NlpFallback:     d.config.NlpFallback,
-		Categories:      d.config.Categories,
-		MetadataVersion: d.config.MetadataVersion,
+		AgentID:          state.AgentID,
+		AgentName:        d.config.AgentName,
+		WalletAddress:    state.WalletAddress,
+		TokenID:          int64(state.TokenID),
+		TxHash:           state.TxHash,
+		ConfigHash:       d.configHash,
+		Description:      d.config.Description,
+		Image:            d.config.Image,
+		AgentType:        d.config.AgentType,
+		Capabilities:     d.config.Capabilities,
+		Commands:         d.config.Commands,
+		NlpFallback:      d.config.NlpFallback,
+		Categories:       d.config.Categories,
+		ShortDescription: d.config.ShortDescription,
+		TutorialURL:      d.config.TutorialURL,
+		FAQItems:         d.config.FAQItems,
+		MetadataVersion:  d.config.MetadataVersion,
 	}
 
 	return d.httpClient.ConfirmMint(sessionToken, req)
@@ -511,8 +530,12 @@ func computeConfigHash(config *DeployConfig) string {
 		TimeUnit     string          `json:"timeUnit"`
 	}
 	var cmds []cmdObj
-	if len(config.Commands) > 0 {
-		json.Unmarshal(config.Commands, &cmds)
+	commandsJSON := config.Commands
+	if len(commandsJSON) > 0 {
+		if normalizedCommands, err := normalizeCommandsJSON(commandsJSON); err == nil {
+			commandsJSON = normalizedCommands
+		}
+		json.Unmarshal(commandsJSON, &cmds)
 	}
 	if len(cmds) > 0 {
 		sort.Slice(cmds, func(i, j int) bool {

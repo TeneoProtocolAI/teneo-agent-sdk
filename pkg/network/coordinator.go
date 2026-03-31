@@ -34,9 +34,10 @@ type TaskExecution struct {
 
 // TaskMessageSender implements the MessageSender interface for streaming tasks
 type TaskMessageSender struct {
-	taskID          string
-	protocolHandler *ProtocolHandler
-	room            string
+	taskID           string
+	protocolHandler  *ProtocolHandler
+	room             string
+	requesterWallet  string
 }
 
 // SendMessage sends a message with content (backward compatibility - STRING type)
@@ -134,7 +135,23 @@ func (s *TaskMessageSender) TriggerWalletTx(tx types.TxRequest, description stri
 
 // sendStandardizedMessage sends a message in standardized format
 func (s *TaskMessageSender) sendStandardizedMessage(msgType string, content interface{}) error {
-	return s.protocolHandler.SendTaskResponseToRoom(s.taskID, content.(string), msgType, true, "", s.room)
+	var contentStr string
+	switch v := content.(type) {
+	case string:
+		contentStr = v
+	default:
+		marshaled, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Errorf("failed to marshal content: %w", err)
+		}
+		contentStr = string(marshaled)
+	}
+	return s.protocolHandler.SendTaskResponseToRoom(s.taskID, contentStr, msgType, true, "", s.room)
+}
+
+// GetRequesterWalletAddress returns the wallet address of the user who initiated the task
+func (s *TaskMessageSender) GetRequesterWalletAddress() string {
+	return s.requesterWallet
 }
 
 // NewTaskCoordinator creates a new task coordinator
@@ -151,6 +168,7 @@ func NewTaskCoordinator(agentHandler types.AgentHandler, protocolHandler *Protoc
 	// Register task handler
 	protocolHandler.client.RegisterHandler("task", coordinator.HandleIncomingTask)
 	protocolHandler.client.RegisterHandler("message", coordinator.HandleUserMessage)
+	protocolHandler.client.RegisterHandler("tx_result", coordinator.HandleTxResultMessage)
 
 	return coordinator
 }
@@ -200,6 +218,11 @@ func (t *TaskCoordinator) checkRateLimit() bool {
 // HandleIncomingTask handles incoming tasks from the coordinator
 func (t *TaskCoordinator) HandleIncomingTask(msg *types.Message) error {
 	log.Printf("📋 Received task from %s: %s", msg.From, msg.Content)
+	if msg.Data != nil {
+		log.Printf("📋 Task message data (raw): %s", string(msg.Data))
+	} else {
+		log.Printf("📋 Task message data: (nil)")
+	}
 
 	// Prevent feedback loops
 	if t.isResponseMessage(msg.Content) {
@@ -207,10 +230,12 @@ func (t *TaskCoordinator) HandleIncomingTask(msg *types.Message) error {
 		return nil
 	}
 
-	// Only handle tasks from coordinator
+	// Accept tasks from coordinator or from a user's EVM address (when coordinator forwards with from=userWallet)
 	if msg.From != "coordinator" {
-		log.Printf("⚠️ Ignoring task from non-coordinator: %s", msg.From)
-		return nil
+		if !isEVMAddress(msg.From) || msg.From == t.protocolHandler.GetWalletAddress() {
+			log.Printf("⚠️ Ignoring task from non-coordinator: %s", msg.From)
+			return nil
+		}
 	}
 
 	// Extract task ID
@@ -233,8 +258,9 @@ func (t *TaskCoordinator) HandleIncomingTask(msg *types.Message) error {
 		return nil
 	}
 
-	// Execute task in goroutine
-	go t.ExecuteTask(taskID, msg.Content, msg.Room)
+	// Execute task in goroutine. When msg.From is user's EVM address, use it; else extract from task data.
+	requester := t.extractRequesterFromTask(msg)
+	go t.ExecuteTask(taskID, msg.Content, msg.Room, requester)
 
 	return nil
 }
@@ -265,13 +291,59 @@ func (t *TaskCoordinator) HandleUserMessage(msg *types.Message) error {
 		return nil
 	}
 
-	go t.ExecuteTask(taskID, msg.Content, msg.Room)
+	go t.ExecuteTask(taskID, msg.Content, msg.Room, msg.From)
 
 	return nil
 }
 
+// HandleTxResultMessage handles incoming tx_result messages from the coordinator.
+// These are sent by the user's wallet after signing (or rejecting) a transaction
+// that was requested via TriggerWalletTx.
+func (t *TaskCoordinator) HandleTxResultMessage(msg *types.Message) error {
+	// Parse tx_result data
+	var resultData types.TxResultData
+	if msg.Data == nil {
+		log.Printf("⚠️ Received tx_result with no data payload")
+		return nil
+	}
+	if err := json.Unmarshal(msg.Data, &resultData); err != nil {
+		log.Printf("⚠️ Failed to parse tx_result data: %v", err)
+		return nil
+	}
+
+	log.Printf("📋 Received tx_result for task %s: status=%s tx_hash=%s", resultData.TaskID, resultData.Status, resultData.TxHash)
+
+	// Check if agent implements TxResultHandler
+	txResultHandler, ok := t.agentHandler.(types.TxResultHandler)
+	if !ok {
+		log.Printf("⚠️ Agent does not implement TxResultHandler, ignoring tx_result for task %s", resultData.TaskID)
+		return nil
+	}
+
+	// Execute in a goroutine to avoid blocking the message processing loop,
+	// consistent with HandleIncomingTask's pattern.
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		room := msg.Room
+
+		messageSender := &TaskMessageSender{
+			taskID:          resultData.TaskID,
+			protocolHandler: t.protocolHandler,
+			room:            room,
+			requesterWallet: msg.From,
+		}
+
+		if err := txResultHandler.HandleTxResult(ctx, resultData, room, messageSender); err != nil {
+			log.Printf("❌ Agent HandleTxResult failed for task %s: %v", resultData.TaskID, err)
+		}
+	}()
+	return nil
+}
+
 // ExecuteTask executes a task using the agent handler
-func (t *TaskCoordinator) ExecuteTask(taskID, content, room string) {
+func (t *TaskCoordinator) ExecuteTask(taskID, content, room, requesterWallet string) {
 	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -306,6 +378,7 @@ func (t *TaskCoordinator) ExecuteTask(taskID, content, room string) {
 			taskID:          taskID,
 			protocolHandler: t.protocolHandler,
 			room:            room,
+			requesterWallet: requesterWallet,
 		}
 
 		// Process the task with streaming capability
@@ -365,6 +438,85 @@ func (t *TaskCoordinator) extractTaskID(msg *types.Message) string {
 	}
 
 	return ""
+}
+
+// extractRequesterFromTask extracts the requester wallet address from task message data.
+// Used when tasks are forwarded from coordinator (msg.From is "coordinator").
+func (t *TaskCoordinator) extractRequesterFromTask(msg *types.Message) string {
+	// Direct user messages: msg.From is the user's wallet
+	if msg.From != "" && msg.From != "system" && msg.From != "coordinator" && msg.From != t.protocolHandler.GetWalletAddress() {
+		return strings.TrimSpace(msg.From)
+	}
+
+	// Coordinator-forwarded tasks: try to extract from message data
+	if msg.Data == nil {
+		log.Printf("⚠️ Task has no Data; cannot extract requester wallet")
+		return ""
+	}
+
+	var taskData map[string]interface{}
+	if err := json.Unmarshal(msg.Data, &taskData); err != nil {
+		log.Printf("⚠️ Failed to parse task Data: %v", err)
+		return ""
+	}
+
+	// Top-level EVM address fields (0x + 40 hex chars)
+	keys := []string{"payer_wallet", "from", "user_address", "wallet_address", "requester", "sender", "wallet", "address", "user_wallet", "evm_address"}
+	for _, key := range keys {
+		if v, ok := taskData[key].(string); ok {
+			addr := strings.TrimSpace(v)
+			if addr != "" && strings.HasPrefix(strings.ToLower(addr), "0x") && len(addr) >= 42 {
+				return addr
+			}
+		}
+	}
+
+	// Nested: user.address, sender.address, etc.
+	if user, ok := taskData["user"].(map[string]interface{}); ok {
+		for _, k := range []string{"address", "wallet_address", "wallet"} {
+			if v, ok := user[k].(string); ok {
+				addr := strings.TrimSpace(v)
+				if addr != "" && strings.HasPrefix(strings.ToLower(addr), "0x") && len(addr) >= 42 {
+					return addr
+				}
+			}
+		}
+	}
+	if sender, ok := taskData["sender"].(map[string]interface{}); ok {
+		for _, k := range []string{"address", "wallet_address", "wallet"} {
+			if v, ok := sender[k].(string); ok {
+				addr := strings.TrimSpace(v)
+				if addr != "" && strings.HasPrefix(strings.ToLower(addr), "0x") && len(addr) >= 42 {
+					return addr
+				}
+			}
+		}
+	}
+
+	log.Printf("⚠️ No requester wallet in task data. Keys present: %v (coordinator must include user's EVM address for swap output routing)", mapKeys(taskData))
+	return ""
+}
+
+func mapKeys(m map[string]interface{}) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func isEVMAddress(s string) bool {
+	s = strings.TrimSpace(s)
+	if len(s) != 42 || !strings.HasPrefix(strings.ToLower(s), "0x") {
+		return false
+	}
+	for _, c := range s[2:] {
+		if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 // isResponseMessage checks if content looks like a response to prevent feedback loops

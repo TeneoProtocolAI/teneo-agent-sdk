@@ -1,8 +1,9 @@
 {
   "name": "Ping Agent",
-  "agent_id": "ping-agent",
+  "agentId": "ping-agent",
+  "shortDescription": "Minimal agent example with a single free command.",
   "description": "Minimal agent example with a single free command. Use this as the simplest possible starting point.",
-  "agent_type": "command",
+  "agentType": "command",
   "capabilities": [
     {
       "name": "ping",
@@ -22,9 +23,9 @@
       "taskUnit": "per-query"
     }
   ],
-  "nlp_fallback": false,
+  "nlpFallback": false,
   "categories": [
     "Developer Tools"
   ],
-  "metadata_version": "2.3.0"
+  "metadata_version": "2.4.0"
 }

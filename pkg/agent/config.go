@@ -13,6 +13,7 @@ import (
 // Config represents the configuration for a Teneo agent
 type Config struct {
 	// Basic agent info
+	AgentID      string   `json:"agent_id"`
 	Name         string   `json:"name"`
 	Description  string   `json:"description"`
 	Image        string   `json:"image"`
@@ -20,6 +21,16 @@ type Config struct {
 	Capabilities []string `json:"capabilities"`
 	ContactInfo  string   `json:"contact_info"`
 	PricingModel string   `json:"pricing_model"`
+
+	// CapabilityDetails provides full capability objects with descriptions.
+	// When set, these take precedence over the string-only Capabilities field
+	// during deployment and metadata serialization. If empty, Capabilities
+	// strings are used with empty descriptions for backward compatibility.
+	CapabilityDetails []types.Capability `json:"capability_details,omitempty"`
+
+	// Profile metadata (optional, sent to backend during deploy/update)
+	ShortDescription string `json:"short_description,omitempty"` // Brief one-line summary
+	TutorialURL      string `json:"tutorial_url,omitempty"`      // YouTube/video tutorial URL
 
 	// Interface configuration
 	InterfaceType  string `json:"interface_type"`
@@ -68,6 +79,16 @@ type Config struct {
 	RedisUseTLS    bool   `json:"redis_use_tls"`    // Enable TLS/SSL (required for managed Redis)
 }
 
+// ResolveCapabilities returns the full Capability objects for this config.
+// If CapabilityDetails is set, it takes precedence. Otherwise, Capabilities
+// strings are converted to Capability objects with empty descriptions.
+func (c *Config) ResolveCapabilities() []types.Capability {
+	if len(c.CapabilityDetails) > 0 {
+		return c.CapabilityDetails
+	}
+	return types.CapabilitiesFromStrings(c.Capabilities)
+}
+
 // Validate validates the configuration
 func (c *Config) Validate() error {
 	if c.Name == "" {
@@ -82,6 +103,9 @@ func (c *Config) Validate() error {
 
 // LoadFromEnv loads configuration from environment variables
 func (c *Config) LoadFromEnv() error {
+	if agentID := os.Getenv("AGENT_ID"); agentID != "" {
+		c.AgentID = agentID
+	}
 	if name := os.Getenv("AGENT_NAME"); name != "" {
 		c.Name = name
 	}
