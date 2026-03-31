@@ -26,14 +26,14 @@ const DefaultMaxJSONSize = 24 * 1024
 // AgentConfig represents the agent configuration from JSON file
 type AgentConfig struct {
 	Name            string       `json:"name"`
-	AgentID         string       `json:"agentId"`
+	AgentID         string       `json:"agent_id"`
 	Description     string       `json:"description"`
 	Image           string       `json:"image,omitempty"`
-	AgentType       string       `json:"agentType"`
+	AgentType       string       `json:"agent_type"`
 	Categories      []string     `json:"categories"`
 	Capabilities    []Capability `json:"capabilities"`
 	Commands        []Command    `json:"commands,omitempty"`
-	NlpFallback     bool         `json:"nlpFallback"`
+	NlpFallback     bool         `json:"nlp_fallback"`
 	McpManifest     string       `json:"mcpManifest,omitempty"`
 	MetadataVersion string       `json:"metadata_version,omitempty"`
 }
