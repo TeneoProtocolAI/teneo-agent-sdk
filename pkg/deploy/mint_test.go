@@ -315,6 +315,64 @@ func TestGenerateConfigHashNormalizesLegacyChoiceParameters(t *testing.T) {
 	}
 }
 
+func TestAgentConfigUnmarshalSupportsSnakeCaseAndLegacyCamelCase(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+	}{
+		{
+			name: "snake_case",
+			raw: `{
+				"name": "Test Agent",
+				"agent_id": "test-agent",
+				"short_description": "Short summary",
+				"description": "A valid description for parsing",
+				"agent_type": "command",
+				"nlp_fallback": true,
+				"categories": ["AI"],
+				"capabilities": [{"name": "cap"}],
+				"commands": []
+			}`,
+		},
+		{
+			name: "legacy camelCase",
+			raw: `{
+				"name": "Test Agent",
+				"agentId": "test-agent",
+				"shortDescription": "Short summary",
+				"description": "A valid description for parsing",
+				"agentType": "command",
+				"nlpFallback": true,
+				"categories": ["AI"],
+				"capabilities": [{"name": "cap"}],
+				"commands": []
+			}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var config AgentConfig
+			if err := json.Unmarshal([]byte(tt.raw), &config); err != nil {
+				t.Fatalf("failed to unmarshal config: %v", err)
+			}
+
+			if config.AgentID != "test-agent" {
+				t.Fatalf("AgentID = %q, want %q", config.AgentID, "test-agent")
+			}
+			if config.ShortDescription != "Short summary" {
+				t.Fatalf("ShortDescription = %q, want %q", config.ShortDescription, "Short summary")
+			}
+			if config.AgentType != "command" {
+				t.Fatalf("AgentType = %q, want %q", config.AgentType, "command")
+			}
+			if !config.NlpFallback {
+				t.Fatal("NlpFallback = false, want true")
+			}
+		})
+	}
+}
+
 func TestPreValidate(t *testing.T) {
 	minter := &Minter{}
 
@@ -349,7 +407,7 @@ func TestPreValidate(t *testing.T) {
 				AgentType: "command",
 			},
 			wantErr: true,
-			errMsg:  "agentId is required",
+			errMsg:  "agent_id is required",
 		},
 		{
 			name: "missing agentType",
@@ -358,7 +416,7 @@ func TestPreValidate(t *testing.T) {
 				AgentID: "test",
 			},
 			wantErr: true,
-			errMsg:  "agentType is required",
+			errMsg:  "agent_type is required",
 		},
 		{
 			name: "invalid agentId with uppercase",
