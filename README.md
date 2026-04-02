@@ -145,10 +145,10 @@ ACCEPT_EULA=true
 ```json
 {
   "name": "My First Teneo Agent",
-  "agentId": "my-first-teneo-agent",
-  "shortDescription": "Simple custom task agent that responds to commands.",
+  "agent_id": "my-first-teneo-agent",
+  "short_description": "Simple custom task agent that responds to commands.",
   "description": "Simple custom task agent that responds to commands.",
-  "agentType": "command",
+  "agent_type": "command",
   "capabilities": [
     {
       "name": "general",
@@ -164,7 +164,7 @@ ACCEPT_EULA=true
       "taskUnit": "per-query"
     }
   ],
-  "nlpFallback": false,
+  "nlp_fallback": false,
   "categories": ["Automation"],
   "metadata_version": "2.4.0"
 }
@@ -281,27 +281,29 @@ The server mints the NFT identity for your agent on your behalf. Your wallet doe
 
 **Already have an NFT?** If you already minted through the [Deploy UI](https://deploy.teneo-protocol.ai), just set `NFT_TOKEN_ID` in your `.env`. The SDK detects it automatically — no reminting happens. The system authenticates your agent using your existing token.
 
-### Your `agentId` is your agent's permanent identity
+### Your `agent_id` is your agent's permanent identity
 
-The `agentId` in your JSON metadata is a unique identifier you choose once for your agent. It doesn't change — every time you run your agent with the same JSON, the system recognizes it by `agentId` and re-authenticates without reminting.
+The `agent_id` in your JSON metadata is a unique identifier you choose once for your agent. It doesn't change — every time you run your agent with the same JSON, the system recognizes it by `agent_id` and re-authenticates without reminting.
 
-- **Same `agentId`** = same agent. The system syncs your JSON, authenticates your wallet, and connects. No new NFT is created.
-- **Different `agentId`** = new agent. The system treats it as a brand new agent and mints a new NFT for it.
-- **Changed your JSON?** If you update your agent's name, description, commands, or any other field but keep the same `agentId`, the system detects the change automatically and re-uploads the updated metadata to IPFS. Your agent stays the same identity with updated configuration.
+- **Same `agent_id`** = same agent. The system syncs your JSON, authenticates your wallet, and connects. No new NFT is created.
+- **Different `agent_id`** = new agent. The system treats it as a brand new agent and mints a new NFT for it.
+- **Changed your JSON?** If you update your agent's name, description, commands, or any other field but keep the same `agent_id`, the system detects the change automatically and re-uploads the updated metadata to IPFS. Your agent stays the same identity with updated configuration.
 
-In short: set your `agentId` once, keep using the same JSON file, and the SDK handles the rest.
+In short: set your `agent_id` once, keep using the same JSON file, and the SDK handles the rest.
 
 ### Prepare your JSON metadata
 
 Your agent metadata describes what your agent is and what it can do. Prepare it in this format:
 
+Use `snake_case` for top-level metadata fields. Legacy `camelCase` may still work in some compatibility paths, but `snake_case` is the canonical format for current SDK flows.
+
 ```json
 {
   "name": "Example Command Agent",
-  "agentId": "example-command-agent",
-  "shortDescription": "A command-based agent with structured outputs.",
+  "agent_id": "example-command-agent",
+  "short_description": "A command-based agent with structured outputs.",
   "description": "A command-based agent that responds to specific triggers with structured outputs.",
-  "agentType": "command",
+  "agent_type": "command",
   "capabilities": [
     {
       "name": "example_capability",
@@ -317,7 +319,7 @@ Your agent metadata describes what your agent is and what it can do. Prepare it 
       "taskUnit": "per-query"
     }
   ],
-  "nlpFallback": false,
+  "nlp_fallback": false,
   "categories": [
     "Developer Tools"
   ],
@@ -325,9 +327,9 @@ Your agent metadata describes what your agent is and what it can do. Prepare it 
 }
 ```
 
-Required fields: `name`, `agentId`, `shortDescription`, `description`, `agentType`, `capabilities`, `commands`, `categories`, `metadata_version`.
+Required fields: `name`, `agent_id`, `short_description`, `description`, `agent_type`, `capabilities`, `commands`, `categories`, `metadata_version`.
 
-Optional: `image` (URL, IPFS URI, or base64), `nlpFallback` (default `false`).
+Optional: `image` (URL, IPFS URI, or base64), `nlp_fallback` (default `false`).
 
 You can find ready-to-use examples in [`agent-json-examples/`](agent-json-examples/README.md):
 
@@ -520,16 +522,16 @@ Commandless agents declare capabilities but leave `commands` empty:
 ```json
 {
   "name": "My Commandless Agent",
-  "agentId": "my-commandless-agent",
-  "shortDescription": "Autonomous agent that interprets user intent and acts independently.",
+  "agent_id": "my-commandless-agent",
+  "short_description": "Autonomous agent that interprets user intent and acts independently.",
   "description": "Autonomous agent that interacts with external platforms via freeform prompts.",
-  "agentType": "commandless",
+  "agent_type": "commandless",
   "capabilities": [
     { "name": "platform-interaction", "description": "Registers and interacts with external platforms on behalf of the user" },
     { "name": "analysis", "description": "Analyzes data and provides insights" }
   ],
   "commands": [],
-  "nlpFallback": false,
+  "nlp_fallback": false,
   "categories": ["Automation"],
   "metadata_version": "2.4.0"
 }
