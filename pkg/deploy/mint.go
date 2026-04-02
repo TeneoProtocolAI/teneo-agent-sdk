@@ -185,6 +185,16 @@ type legacyAgentConfig struct {
 	FAQItems         []FAQItem    `json:"faqItems,omitempty"`
 }
 
+type canonicalPresenceAgentConfig struct {
+	AgentID          *string `json:"agent_id"`
+	ShortDescription *string `json:"short_description"`
+	AgentType        *string `json:"agent_type"`
+	NlpFallback      *bool   `json:"nlp_fallback"`
+	McpManifest      *string `json:"mcp_manifest"`
+	TutorialURL      *string `json:"tutorial_url"`
+	FAQItems         any     `json:"faq_items"`
+}
+
 func (c *AgentConfig) UnmarshalJSON(data []byte) error {
 	type canonical AgentConfig
 	var parsed canonical
@@ -197,27 +207,32 @@ func (c *AgentConfig) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	var canonicalPresence canonicalPresenceAgentConfig
+	if err := json.Unmarshal(data, &canonicalPresence); err != nil {
+		return err
+	}
+
 	*c = AgentConfig(parsed)
 
-	if c.AgentID == "" {
+	if canonicalPresence.AgentID == nil && c.AgentID == "" {
 		c.AgentID = legacy.AgentID
 	}
-	if c.ShortDescription == "" {
+	if canonicalPresence.ShortDescription == nil && c.ShortDescription == "" {
 		c.ShortDescription = legacy.ShortDescription
 	}
-	if c.AgentType == "" {
+	if canonicalPresence.AgentType == nil && c.AgentType == "" {
 		c.AgentType = legacy.AgentType
 	}
-	if legacy.NlpFallback != nil {
+	if canonicalPresence.NlpFallback == nil && legacy.NlpFallback != nil {
 		c.NlpFallback = *legacy.NlpFallback
 	}
-	if c.McpManifest == "" {
+	if canonicalPresence.McpManifest == nil && c.McpManifest == "" {
 		c.McpManifest = legacy.McpManifest
 	}
-	if c.TutorialURL == "" {
+	if canonicalPresence.TutorialURL == nil && c.TutorialURL == "" {
 		c.TutorialURL = legacy.TutorialURL
 	}
-	if len(c.FAQItems) == 0 {
+	if canonicalPresence.FAQItems == nil && len(c.FAQItems) == 0 {
 		c.FAQItems = legacy.FAQItems
 	}
 
