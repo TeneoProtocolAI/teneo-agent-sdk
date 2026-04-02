@@ -1,10 +1,10 @@
 {
   "name": "Social Intelligence Agent",
-  "agentId": "social-intel-agent",
-  "shortDescription": "Social intelligence for profiles, timelines, and post analytics.",
+  "agent_id": "social-intel-agent",
+  "short_description": "Social intelligence for profiles, timelines, and post analytics.",
   "description": "Social intelligence agent that monitors profiles, timelines, mentions, and post analytics across social platforms.",
   "image": "",
-  "agentType": "command",
+  "agent_type": "command",
   "capabilities": [
     {
       "name": "social/profile_lookup",
@@ -135,7 +135,7 @@
       "taskUnit": "per-query"
     }
   ],
-  "nlpFallback": false,
+  "nlp_fallback": false,
   "categories": [
     "Social Media"
   ],
