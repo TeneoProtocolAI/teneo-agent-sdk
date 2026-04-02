@@ -9,6 +9,19 @@ import (
 	"strings"
 )
 
+type SubmitForReviewResult struct {
+	Success           bool   `json:"success"`
+	Status            string `json:"status,omitempty"`
+	Message           string `json:"message,omitempty"`
+	ReviewStatus      string `json:"review_status,omitempty"`
+	ReviewStateBefore string `json:"review_state_before,omitempty"`
+	ReviewStateAfter  string `json:"review_state_after,omitempty"`
+	HashBefore        string `json:"hash_before,omitempty"`
+	HashAfter         string `json:"hash_after,omitempty"`
+	SubmittedAt       string `json:"submitted_at,omitempty"`
+	Error             string `json:"error,omitempty"`
+}
+
 // SubmitForReview submits an agent for public visibility review on the Teneo network.
 //
 // Agents go through a review process before becoming publicly visible:
@@ -26,12 +39,13 @@ import (
 //
 // Example:
 //
-//	err := agent.SubmitForReview(
+//	result, err := agent.SubmitForReview(
 //	    "https://backend.developer.chatroom.teneo-protocol.ai",
 //	    "my-agent-id",
 //	    "0xYourWalletAddress",
 //	    42,
 //	)
+//	fmt.Println(result.Status)
 //
 // HTTP API equivalent (for non-Go clients):
 //
@@ -42,7 +56,7 @@ import (
 //	    "creator_wallet": "0xYourWalletAddress",
 //	    "token_id": 42
 //	}
-func SubmitForReview(backendURL, agentID, creatorWallet string, tokenID uint64) error {
+func SubmitForReviewDetailed(backendURL, agentID, creatorWallet string, tokenID uint64) (*SubmitForReviewResult, error) {
 	backendURL = strings.TrimRight(backendURL, "/")
 
 	reqBody, err := json.Marshal(map[string]interface{}{
@@ -50,29 +64,36 @@ func SubmitForReview(backendURL, agentID, creatorWallet string, tokenID uint64) 
 		"token_id":       tokenID,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to marshal request: %w", err)
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
 	url := fmt.Sprintf("%s/api/agents/%s/submit-for-review", backendURL, agentID)
 	resp, err := http.Post(url, "application/json", bytes.NewReader(reqBody))
 	if err != nil {
-		return fmt.Errorf("failed to send request: %w", err)
+		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
 
-	if resp.StatusCode != http.StatusOK {
-		var errResp struct {
-			Error string `json:"error"`
-		}
-		if json.Unmarshal(body, &errResp) == nil && errResp.Error != "" {
-			return fmt.Errorf("submit for review failed: %s", errResp.Error)
-		}
-		return fmt.Errorf("submit for review failed with status %d", resp.StatusCode)
+	var submitResp SubmitForReviewResult
+	if len(body) > 0 {
+		_ = json.Unmarshal(body, &submitResp)
 	}
 
-	return nil
+	if resp.StatusCode != http.StatusOK {
+		if submitResp.Error != "" {
+			return nil, fmt.Errorf("submit for review failed: %s", submitResp.Error)
+		}
+		return nil, fmt.Errorf("submit for review failed with status %d", resp.StatusCode)
+	}
+
+	return &submitResp, nil
+}
+
+func SubmitForReview(backendURL, agentID, creatorWallet string, tokenID uint64) error {
+	_, err := SubmitForReviewDetailed(backendURL, agentID, creatorWallet, tokenID)
+	return err
 }
 
 // WithdrawPublic withdraws a public agent back to private visibility on the Teneo network.

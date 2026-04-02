@@ -501,8 +501,24 @@ func (a *EnhancedAgent) Run() error {
 		// Wait for registration to complete before submitting for review
 		select {
 		case <-a.protocolHandler.Registered():
-			if err := a.SubmitForReview(); err != nil {
+			result, err := a.SubmitForReviewDetailed()
+			if err != nil {
 				log.Printf("⚠️ Failed to submit agent for review: %v", err)
+			} else {
+				switch result.Status {
+				case "submitted":
+					log.Printf("✅ Agent submitted for review")
+				case "resubmitted_for_review":
+					log.Printf("✅ Agent re-submitted for review after metadata changes")
+				case "no_changes":
+					log.Printf("ℹ️ Agent already in review with no metadata changes")
+				case "already_public":
+					log.Printf("ℹ️ Agent is already public")
+				default:
+					if result.Message != "" {
+						log.Printf("ℹ️ Submit for review result: %s", result.Message)
+					}
+				}
 			}
 		case <-time.After(30 * time.Second):
 			log.Printf("⚠️ Timed out waiting for registration — skipping submit for review")
@@ -523,15 +539,23 @@ func (a *EnhancedAgent) Run() error {
 // SubmitForReview submits the agent for public visibility review on the Teneo network.
 // The agent must have been deployed, connected at least once, and be currently online.
 // Review can take up to 72 hours. The agent must stay online during review.
-func (a *EnhancedAgent) SubmitForReview() error {
+func (a *EnhancedAgent) SubmitForReviewDetailed() (*SubmitForReviewResult, error) {
 	if a.agentID == "" {
-		return fmt.Errorf("agent ID is required for submit-for-review: set AgentID on EnhancedAgentConfig or Config.AgentID")
+		return nil, fmt.Errorf("agent ID is required for submit-for-review: set AgentID on EnhancedAgentConfig or Config.AgentID")
 	}
 	tokenID, err := a.getTokenID()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return SubmitForReview(a.backendURL, a.agentID, a.authManager.GetAddress(), tokenID)
+	return SubmitForReviewDetailed(a.backendURL, a.agentID, a.authManager.GetAddress(), tokenID)
+}
+
+// SubmitForReview submits the agent for public visibility review on the Teneo network.
+// The agent must have been deployed, connected at least once, and be currently online.
+// Review can take up to 72 hours. The agent must stay online during review.
+func (a *EnhancedAgent) SubmitForReview() error {
+	_, err := a.SubmitForReviewDetailed()
+	return err
 }
 
 // WithdrawPublic withdraws a public agent back to private visibility.

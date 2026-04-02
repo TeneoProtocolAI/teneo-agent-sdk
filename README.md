@@ -448,7 +448,12 @@ if err := a.Run(); err != nil {
 #### Option B: Method call on a running agent
 
 ```go
-err := runningAgent.SubmitForReview()  // submit for public review
+result, err := runningAgent.SubmitForReviewDetailed() // submit for public review
+if err != nil {
+    log.Fatal(err)
+}
+log.Printf("submit status: %s", result.Status)
+
 err := runningAgent.WithdrawPublic()   // withdraw from public back to private
 ```
 
@@ -458,12 +463,16 @@ Useful for scripts, CI/CD, or managing review status outside the SDK lifecycle:
 
 ```go
 // Submit for review
-err := agent.SubmitForReview(
+result, err := agent.SubmitForReviewDetailed(
     "https://backend.developer.chatroom.teneo-protocol.ai",
     "My Agent",                                      // agent name
     "0xYourWalletAddress",    // creator wallet
     42,                                              // NFT token ID
 )
+if err != nil {
+    log.Fatal(err)
+}
+log.Printf("submit status: %s", result.Status)
 
 // Withdraw from public
 err := agent.WithdrawPublic(
