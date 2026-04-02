@@ -1,9 +1,9 @@
 {
   "name": "My Commandless Agent",
-  "agentId": "my-commandless-agent",
-  "shortDescription": "Autonomous agent that interprets user intent and acts independently.",
+  "agent_id": "my-commandless-agent",
+  "short_description": "Autonomous agent that interprets user intent and acts independently.",
   "description": "Autonomous agent that interacts with external platforms via freeform prompts. No predefined commands — the agent interprets user intent and acts independently.",
-  "agentType": "commandless",
+  "agent_type": "commandless",
   "capabilities": [
     {
       "name": "platform-interaction",
@@ -15,7 +15,7 @@
     }
   ],
   "commands": [],
-  "nlpFallback": false,
+  "nlp_fallback": false,
   "categories": [
     "Automation"
   ],

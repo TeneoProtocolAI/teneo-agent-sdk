@@ -153,6 +153,23 @@ type FAQItem struct {
 // AgentConfig represents the agent configuration from JSON file
 type AgentConfig struct {
 	Name             string       `json:"name"`
+	AgentID          string       `json:"agent_id"`
+	Description      string       `json:"description"`
+	ShortDescription string       `json:"short_description,omitempty"`
+	Image            string       `json:"image,omitempty"`
+	AgentType        string       `json:"agent_type"`
+	Categories       []string     `json:"categories"`
+	Capabilities     []Capability `json:"capabilities"`
+	Commands         []Command    `json:"commands,omitempty"`
+	NlpFallback      bool         `json:"nlp_fallback"`
+	McpManifest      string       `json:"mcp_manifest,omitempty"`
+	MetadataVersion  string       `json:"metadata_version,omitempty"`
+	TutorialURL      string       `json:"tutorial_url,omitempty"`
+	FAQItems         []FAQItem    `json:"faq_items,omitempty"`
+}
+
+type legacyAgentConfig struct {
+	Name             string       `json:"name"`
 	AgentID          string       `json:"agentId"`
 	Description      string       `json:"description"`
 	ShortDescription string       `json:"shortDescription,omitempty"`
@@ -161,11 +178,65 @@ type AgentConfig struct {
 	Categories       []string     `json:"categories"`
 	Capabilities     []Capability `json:"capabilities"`
 	Commands         []Command    `json:"commands,omitempty"`
-	NlpFallback      bool         `json:"nlpFallback"`
+	NlpFallback      *bool        `json:"nlpFallback,omitempty"`
 	McpManifest      string       `json:"mcpManifest,omitempty"`
 	MetadataVersion  string       `json:"metadata_version,omitempty"`
 	TutorialURL      string       `json:"tutorialUrl,omitempty"`
 	FAQItems         []FAQItem    `json:"faqItems,omitempty"`
+}
+
+type canonicalPresenceAgentConfig struct {
+	AgentID          *string `json:"agent_id"`
+	ShortDescription *string `json:"short_description"`
+	AgentType        *string `json:"agent_type"`
+	NlpFallback      *bool   `json:"nlp_fallback"`
+	McpManifest      *string `json:"mcp_manifest"`
+	TutorialURL      *string `json:"tutorial_url"`
+	FAQItems         any     `json:"faq_items"`
+}
+
+func (c *AgentConfig) UnmarshalJSON(data []byte) error {
+	type canonical AgentConfig
+	var parsed canonical
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		return err
+	}
+
+	var legacy legacyAgentConfig
+	if err := json.Unmarshal(data, &legacy); err != nil {
+		return err
+	}
+
+	var canonicalPresence canonicalPresenceAgentConfig
+	if err := json.Unmarshal(data, &canonicalPresence); err != nil {
+		return err
+	}
+
+	*c = AgentConfig(parsed)
+
+	if canonicalPresence.AgentID == nil && c.AgentID == "" {
+		c.AgentID = legacy.AgentID
+	}
+	if canonicalPresence.ShortDescription == nil && c.ShortDescription == "" {
+		c.ShortDescription = legacy.ShortDescription
+	}
+	if canonicalPresence.AgentType == nil && c.AgentType == "" {
+		c.AgentType = legacy.AgentType
+	}
+	if canonicalPresence.NlpFallback == nil && legacy.NlpFallback != nil {
+		c.NlpFallback = *legacy.NlpFallback
+	}
+	if canonicalPresence.McpManifest == nil && c.McpManifest == "" {
+		c.McpManifest = legacy.McpManifest
+	}
+	if canonicalPresence.TutorialURL == nil && c.TutorialURL == "" {
+		c.TutorialURL = legacy.TutorialURL
+	}
+	if canonicalPresence.FAQItems == nil && len(c.FAQItems) == 0 {
+		c.FAQItems = legacy.FAQItems
+	}
+
+	return nil
 }
 
 // Capability represents an agent capability
@@ -418,16 +489,16 @@ func (m *Minter) preValidate(config *AgentConfig) error {
 		return fmt.Errorf("name is required")
 	}
 	if config.AgentID == "" {
-		return fmt.Errorf("agentId is required")
+		return fmt.Errorf("agent_id is required")
 	}
 	if config.AgentType == "" {
-		return fmt.Errorf("agentType is required")
+		return fmt.Errorf("agent_type is required")
 	}
 
-	// Check agentId format
+	// Check agent_id format
 	for _, c := range config.AgentID {
 		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') {
-			return fmt.Errorf("agentId can only contain lowercase letters, numbers, and hyphens")
+			return fmt.Errorf("agent_id can only contain lowercase letters, numbers, and hyphens")
 		}
 	}
 
@@ -453,7 +524,7 @@ func (m *Minter) validateConfig(config *AgentConfig) error {
 
 	// AgentID validation
 	if len(config.AgentID) > 64 {
-		return fmt.Errorf("agentId must not exceed 64 characters")
+		return fmt.Errorf("agent_id must not exceed 64 characters")
 	}
 
 	// Description validation
