@@ -83,4 +83,4 @@ testdata/output/
 
 # Sensitive test fixtures
 tests/x_alreadyexisting.json
-tests/test_new_agent.json
+tests/test_new_agent.json.claude
