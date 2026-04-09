@@ -1,10 +1,10 @@
 {
   "name": "Code Tools MCP Agent",
-  "agentId": "code-tools-mcp",
-  "shortDescription": "MCP-based agent providing code formatting, linting, and snippet search tools.",
+  "agent_id": "code-tools-mcp",
+  "short_description": "MCP-based agent providing code formatting, linting, and snippet search tools.",
   "description": "An MCP (Model Context Protocol) agent that exposes code formatting, linting, and snippet search as tools. Connect any MCP-compatible client to use these capabilities.",
   "image": "",
-  "agentType": "mcp",
+  "agent_type": "mcp",
   "mcpManifest": "https://example.com/code-tools/mcp-manifest.json",
   "capabilities": [
     {
@@ -21,7 +21,7 @@
     }
   ],
   "commands": [],
-  "nlpFallback": false,
+  "nlp_fallback": false,
   "categories": [
     "Developer Tools"
   ],

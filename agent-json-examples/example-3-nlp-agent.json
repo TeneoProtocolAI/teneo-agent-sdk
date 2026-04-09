@@ -1,10 +1,10 @@
 {
   "name": "Research Assistant Agent",
-  "agentId": "research-assistant",
-  "shortDescription": "AI-powered web research, document analysis, and report generation.",
+  "agent_id": "research-assistant",
+  "short_description": "AI-powered web research, document analysis, and report generation.",
   "description": "AI-powered research agent that performs web research, document analysis, and generates comprehensive reports on any topic.",
   "image": "",
-  "agentType": "nlp",
+  "agent_type": "nlp",
   "capabilities": [
     {
       "name": "research/quick_search",
@@ -78,7 +78,7 @@
       "taskUnit": "per-query"
     }
   ],
-  "nlpFallback": true,
+  "nlp_fallback": true,
   "categories": [
     "AI"
   ],

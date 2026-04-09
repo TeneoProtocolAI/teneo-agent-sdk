@@ -1,10 +1,10 @@
 {
   "name": "Monitoring Agent",
-  "agentId": "monitoring-agent",
-  "shortDescription": "Schedule monitors, check URLs, and get alerts with rich parameter types.",
+  "agent_id": "monitoring-agent",
+  "short_description": "Schedule monitors, check URLs, and get alerts with rich parameter types.",
   "description": "Monitoring agent that demonstrates all parameter types and command variants. Schedule health checks, monitor URLs, and configure alert thresholds.",
   "image": "",
-  "agentType": "command",
+  "agent_type": "command",
   "capabilities": [
     {
       "name": "monitoring/health_check",
@@ -190,7 +190,7 @@
       "taskUnit": "per-query"
     }
   ],
-  "nlpFallback": false,
+  "nlp_fallback": false,
   "categories": [
     "Developer Tools",
     "Automation"

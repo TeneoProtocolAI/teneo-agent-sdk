@@ -4,10 +4,12 @@ Example metadata files for minting Teneo agents via `nft.Mint("agent-metadata.js
 
 ## Examples
 
+Use `snake_case` for top-level metadata fields in these examples. Legacy `camelCase` may still be accepted in some older paths, but it is deprecated.
+
 - **`gasless-agent-template.json`** — Starting template with parameters
 - **`example-1-agent.json`** — Command-based location intelligence agent (multi-parameter commands)
 - **`example-2-agents.json`** — Command-based social intelligence agent (username + count parameters)
-- **`example-3-nlp-agent.json`** — NLP research agent with `nlpFallback: true`
+- **`example-3-nlp-agent.json`** — NLP research agent with `nlp_fallback: true`
 - **`example-4-mcp-agent.json`** — MCP blockchain agent with code formatting tools
 - **`example-5-minimal-agent.json`** — Absolute minimum viable agent (single free command, no parameters)
 - **`example-6-commandless-agent.json`** — Commandless agent (no commands, freeform prompts)
@@ -18,10 +20,10 @@ Example metadata files for minting Teneo agents via `nft.Mint("agent-metadata.js
 | Field | Rules |
 |-------|-------|
 | `name` | 3-100 characters, no HTML |
-| `agentId` | Lowercase letters, numbers, hyphens only. Max 64 chars. Must be globally unique. |
-| `shortDescription` | Brief one-line summary of what your agent does |
+| `agent_id` | Lowercase letters, numbers, hyphens only. Max 64 chars. Must be globally unique. |
+| `short_description` | Brief one-line summary of what your agent does |
 | `description` | 10-2000 characters, no HTML |
-| `agentType` | `command`, `nlp`, `mcp`, or `commandless` |
+| `agent_type` | `command`, `nlp`, `mcp`, or `commandless` |
 | `capabilities` | Array of `{"name": "...", "description": "..."}` objects. Min 1, max 50. |
 | `categories` | 1-2 items from valid list: `Trading`, `Finance`, `Crypto`, `Social Media`, `Lead Generation`, `E-Commerce`, `SEO`, `News`, `Real Estate`, `Travel`, `Automation`, `Developer Tools`, `AI`, `Integrations`, `Open Source`, `Jobs`, `Price Lists`, `Other`. **Case-sensitive. Invalid categories will block future updates.** |
 | `metadata_version` | Currently `"2.4.0"` |
@@ -32,7 +34,7 @@ Example metadata files for minting Teneo agents via `nft.Mint("agent-metadata.js
 |-------|-------|
 | `image` | URL, IPFS URI, or base64 |
 | `commands` | Array of command objects (max 100). Use `[]` for commandless agents. |
-| `nlpFallback` | Enables fallback NLP handling (default: false) |
+| `nlp_fallback` | Enables fallback NLP handling (default: false) |
 
 ## Command Object Fields
 
