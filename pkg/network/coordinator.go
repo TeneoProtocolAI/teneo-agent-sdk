@@ -38,6 +38,7 @@ type TaskMessageSender struct {
 	protocolHandler  *ProtocolHandler
 	room             string
 	requesterWallet  string
+	streamSeq        int
 }
 
 // SendMessage sends a message with content (backward compatibility - STRING type)
@@ -152,6 +153,23 @@ func (s *TaskMessageSender) sendStandardizedMessage(msgType string, content inte
 // GetRequesterWalletAddress returns the wallet address of the user who initiated the task
 func (s *TaskMessageSender) GetRequesterWalletAddress() string {
 	return s.requesterWallet
+}
+
+func (s *TaskMessageSender) SendChunk(content string) error {
+	err := s.protocolHandler.SendStreamingTaskResponseToRoom(
+		s.taskID, content, types.StandardMessageTypeString, s.room, s.streamSeq, false,
+	)
+	if err != nil {
+		return err
+	}
+	s.streamSeq++
+	return nil
+}
+
+func (s *TaskMessageSender) SendStreamEnd() error {
+	return s.protocolHandler.SendStreamingTaskResponseToRoom(
+		s.taskID, "", types.StandardMessageTypeString, s.room, s.streamSeq, true,
+	)
 }
 
 // NewTaskCoordinator creates a new task coordinator

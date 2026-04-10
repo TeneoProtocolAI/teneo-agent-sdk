@@ -93,6 +93,16 @@ func (t *TestMessageSender) GetRequesterWalletAddress() string {
 	return ""
 }
 
+// SendChunk implements streaming chunk sending for tests
+func (t *TestMessageSender) SendChunk(content string) error {
+	return nil
+}
+
+// SendStreamEnd implements stream end signaling for tests
+func (t *TestMessageSender) SendStreamEnd() error {
+	return nil
+}
+
 // TestAgent implements StreamingTaskHandler for testing
 type TestAgent struct{}
 
