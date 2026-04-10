@@ -259,3 +259,11 @@ type TxResultData struct {
 	Status string `json:"status"` // "broadcasted" | "confirmed" | "rejected" | "failed"
 	Error  string `json:"error,omitempty"`
 }
+
+// StreamMeta contains streaming metadata for chunked task responses.
+// When present in a task_response's Data field, it indicates the response
+// is part of a streaming sequence rather than a single atomic response.
+type StreamMeta struct {
+	Seq   int  `json:"seq"`
+	Final bool `json:"final"`
+}
