@@ -127,7 +127,6 @@ func (c *NetworkClient) Connect() error {
 
 	// Set up pong handler to respond to server pings
 	c.conn.SetPongHandler(func(appData string) error {
-		log.Printf("🏓 Pong received from server")
 		// Reset read deadline when we receive a pong
 		c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return nil
@@ -458,7 +457,6 @@ func (c *NetworkClient) reconnect() error {
 
 	// Set up pong handler to respond to server pings
 	c.conn.SetPongHandler(func(appData string) error {
-		log.Printf("🏓 Pong received from server")
 		// Reset read deadline when we receive a pong
 		c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return nil
@@ -512,7 +510,6 @@ func (c *NetworkClient) pingPongHandler() {
 				}
 				return
 			}
-			log.Printf("🏓 Ping sent successfully")
 		}
 	}
 }
