@@ -444,6 +444,39 @@ func (p *ProtocolHandler) SendTaskResponseToRoom(taskID, content string, content
 	return p.client.SendMessage(msg)
 }
 
+// SendStreamingTaskResponseToRoom sends a streaming chunk as a task_response.
+// The stream metadata (seq/final) is included in the Data field alongside task_id.
+func (p *ProtocolHandler) SendStreamingTaskResponseToRoom(taskID, content, contentType, room string, seq int, final bool) error {
+	responseData := map[string]interface{}{
+		"task_id": taskID,
+		"success": true,
+		"stream": map[string]interface{}{
+			"seq":   seq,
+			"final": final,
+		},
+	}
+
+	data, err := json.Marshal(responseData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal streaming response data: %w", err)
+	}
+
+	msg := &types.Message{
+		Type:          "task_response",
+		From:          p.agentName,
+		Room:          room,
+		DataRoom:      room,
+		MessageRoomId: room,
+		Content:       content,
+		ContentType:   contentType,
+		TaskID:        taskID,
+		Data:          data,
+		Timestamp:     time.Now(),
+	}
+
+	return p.client.SendMessage(msg)
+}
+
 // UpdateCapabilities updates the agent's capabilities
 func (p *ProtocolHandler) UpdateCapabilities(capabilities []string) {
 	p.capabilities = capabilities

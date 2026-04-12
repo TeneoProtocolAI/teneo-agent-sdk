@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/alerting"
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/types"
 )
 
@@ -22,6 +23,7 @@ type TaskCoordinator struct {
 	rateLimitPerMin   int
 	rateLimitMu       sync.Mutex
 	requestTimestamps []time.Time
+	alerter           *alerting.SlackAlerter
 }
 
 // TaskExecution represents an active task execution
@@ -38,6 +40,7 @@ type TaskMessageSender struct {
 	protocolHandler  *ProtocolHandler
 	room             string
 	requesterWallet  string
+	streamSeq        int
 }
 
 // SendMessage sends a message with content (backward compatibility - STRING type)
@@ -154,6 +157,23 @@ func (s *TaskMessageSender) GetRequesterWalletAddress() string {
 	return s.requesterWallet
 }
 
+func (s *TaskMessageSender) SendChunk(content string) error {
+	err := s.protocolHandler.SendStreamingTaskResponseToRoom(
+		s.taskID, content, types.StandardMessageTypeString, s.room, s.streamSeq, false,
+	)
+	if err != nil {
+		return err
+	}
+	s.streamSeq++
+	return nil
+}
+
+func (s *TaskMessageSender) SendStreamEnd() error {
+	return s.protocolHandler.SendStreamingTaskResponseToRoom(
+		s.taskID, "", types.StandardMessageTypeString, s.room, s.streamSeq, true,
+	)
+}
+
 // NewTaskCoordinator creates a new task coordinator
 func NewTaskCoordinator(agentHandler types.AgentHandler, protocolHandler *ProtocolHandler, capabilities []string) *TaskCoordinator {
 	coordinator := &TaskCoordinator{
@@ -180,6 +200,11 @@ func (t *TaskCoordinator) SetRateLimit(tasksPerMinute int) {
 	defer t.rateLimitMu.Unlock()
 	t.rateLimitPerMin = tasksPerMinute
 	log.Printf("⚙️ Rate limit set to: %d tasks/minute", tasksPerMinute)
+}
+
+// SetAlerter sets the Slack alerter for task failure notifications
+func (t *TaskCoordinator) SetAlerter(a *alerting.SlackAlerter) {
+	t.alerter = a
 }
 
 // checkRateLimit checks if the rate limit allows processing a new task
@@ -385,10 +410,16 @@ func (t *TaskCoordinator) ExecuteTask(taskID, content, room, requesterWallet str
 		if err := streamingHandler.ProcessTaskWithStreaming(ctx, content, room, messageSender); err != nil {
 			log.Printf("❌ Streaming task %s failed: %v", taskID, err)
 			t.protocolHandler.SendTaskResponseToRoom(taskID, fmt.Sprintf("❌ Error: %v", err), types.StandardMessageTypeString, false, err.Error(), room)
+			if t.alerter != nil {
+				t.alerter.SendTaskFailure(taskID, err.Error(), "")
+			}
 			return
 		}
 
 		log.Printf("✅ Streaming task %s completed successfully", taskID)
+		if t.alerter != nil {
+			t.alerter.RecordSuccess()
+		}
 
 		// Send final completion message if needed
 		// Note: The agent should send its own completion message using the MessageSender
@@ -401,10 +432,16 @@ func (t *TaskCoordinator) ExecuteTask(taskID, content, room, requesterWallet str
 		if err != nil {
 			log.Printf("❌ Task %s failed: %v", taskID, err)
 			t.protocolHandler.SendTaskResponseToRoom(taskID, fmt.Sprintf("❌ Error: %v", err), types.StandardMessageTypeString, false, err.Error(), room)
+			if t.alerter != nil {
+				t.alerter.SendTaskFailure(taskID, err.Error(), "")
+			}
 			return
 		}
 
 		log.Printf("✅ Task %s completed successfully", taskID)
+		if t.alerter != nil {
+			t.alerter.RecordSuccess()
+		}
 
 		// Send response
 		if err := t.protocolHandler.SendTaskResponseToRoom(taskID, result, types.StandardMessageTypeString, true, "", room); err != nil {

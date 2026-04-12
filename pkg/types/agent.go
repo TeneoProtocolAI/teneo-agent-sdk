@@ -59,6 +59,13 @@ type MessageSender interface {
 	// Used for operations that must route funds to the requester (e.g. swap output).
 	// Returns empty string if the requester is unknown (e.g. task from coordinator).
 	GetRequesterWalletAddress() string
+	// SendChunk sends a single streaming chunk to the client.
+	// Each chunk is delivered as a task_response with stream metadata (seq/final).
+	// Content is appended to the accumulated response on the client side.
+	SendChunk(content string) error
+	// SendStreamEnd signals the end of a streaming response.
+	// Must be called after the last SendChunk to finalize the stream.
+	SendStreamEnd() error
 }
 
 // StreamingTaskHandler is an optional interface for agents that need to send multiple messages during task execution

@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/alerting"
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/auth"
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/cache"
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/deploy"
@@ -33,6 +34,7 @@ type EnhancedAgent struct {
 	taskCoordinator      *network.TaskCoordinator
 	healthServer         *health.Server
 	agentCache           cache.AgentCache
+	alerter              *alerting.SlackAlerter
 	backendURL           string
 	agentID              string
 	submitForReviewOnRun bool
@@ -309,6 +311,18 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 		agent.taskCoordinator.SetRateLimit(config.Config.RateLimitPerMinute)
 	}
 
+	// Initialize Slack alerter if configured
+	if config.Config.SlackWebhookURL != "" {
+		agent.alerter = alerting.NewSlackAlerter(alerting.SlackConfig{
+			WebhookURL:      config.Config.SlackWebhookURL,
+			AgentName:       config.Config.Name,
+			AgentWallet:     authManager.GetAddress(),
+			ThrottleSeconds: config.Config.SlackAlertThrottleSeconds,
+		})
+		agent.taskCoordinator.SetAlerter(agent.alerter)
+		log.Printf("📢 Slack alerting enabled")
+	}
+
 	// Initialize Redis cache if enabled
 	if config.Config.RedisEnabled {
 		log.Printf("🗄️  Initializing Redis cache at %s", config.Config.RedisAddress)
@@ -493,6 +507,17 @@ func (a *EnhancedAgent) Stop() error {
 
 // Run runs the agent until interrupted
 func (a *EnhancedAgent) Run() error {
+	// Panic recovery with Slack alerting
+	defer func() {
+		if r := recover(); r != nil {
+			reason := fmt.Sprintf("panic: %v", r)
+			log.Printf("💀 Agent crashed: %s", reason)
+			if a.alerter != nil {
+				a.alerter.SendAgentCrash(reason, 1)
+			}
+		}
+	}()
+
 	if err := a.Start(); err != nil {
 		return err
 	}

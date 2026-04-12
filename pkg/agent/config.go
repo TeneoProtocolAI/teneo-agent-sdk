@@ -77,6 +77,10 @@ type Config struct {
 	RedisDB        int    `json:"redis_db"`         // Redis database number (0-15)
 	RedisKeyPrefix string `json:"redis_key_prefix"` // Prefix for all cache keys
 	RedisUseTLS    bool   `json:"redis_use_tls"`    // Enable TLS/SSL (required for managed Redis)
+
+	// Slack alerting configuration
+	SlackWebhookURL          string `json:"slack_webhook_url"`           // Slack webhook URL for failure alerts
+	SlackAlertThrottleSeconds int    `json:"slack_alert_throttle_seconds"` // Throttle window in seconds (default: 60)
 }
 
 // ResolveCapabilities returns the full Capability objects for this config.
@@ -196,6 +200,15 @@ func (c *Config) LoadFromEnv() error {
 	if redisTLS := os.Getenv("REDIS_USE_TLS"); redisTLS != "" {
 		if useTLS, err := strconv.ParseBool(redisTLS); err == nil {
 			c.RedisUseTLS = useTLS
+		}
+	}
+	// Slack alerting configuration
+	if slackURL := os.Getenv("SLACK_WEBHOOK_URL"); slackURL != "" {
+		c.SlackWebhookURL = slackURL
+	}
+	if throttle := os.Getenv("SLACK_ALERT_THROTTLE_SECONDS"); throttle != "" {
+		if secs, err := strconv.Atoi(throttle); err == nil {
+			c.SlackAlertThrottleSeconds = secs
 		}
 	}
 	return nil
