@@ -111,8 +111,15 @@ func (s *SlackAlerter) SendTaskFailure(taskID, errorMsg, stackTrace string) {
 }
 
 // SendAgentCrash sends an agent crash alert to Slack
+// Exit code 1 (force close / signal interrupt) is skipped to avoid noisy alerts on intentional shutdowns
 func (s *SlackAlerter) SendAgentCrash(reason string, exitCode int) {
 	if s == nil {
+		return
+	}
+
+	// Skip notification for force close (exit code 1)
+	if exitCode == 1 {
+		log.Printf("🔕 Skipping Slack alert for force close (exit code 1): %s", reason)
 		return
 	}
 
