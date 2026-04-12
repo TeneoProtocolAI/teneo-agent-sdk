@@ -37,6 +37,7 @@ type EnhancedAgent struct {
 	alerter              *alerting.SlackAlerter
 	backendURL           string
 	agentID              string
+	additionalHeaders    map[string]string
 	submitForReviewOnRun bool
 	running              bool
 	startTime            time.Time
@@ -263,6 +264,7 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 		agentHandler:         config.AgentHandler,
 		backendURL:           config.BackendURL,
 		agentID:              resolvedAgentID,
+		additionalHeaders:    config.Config.AdditionalHeaders,
 		submitForReviewOnRun: config.SubmitForReview,
 		ctx:                  ctx,
 		cancel:               cancel,
@@ -573,7 +575,7 @@ func (a *EnhancedAgent) SubmitForReviewDetailed() (*SubmitForReviewResult, error
 	if err != nil {
 		return nil, err
 	}
-	return SubmitForReviewDetailed(a.backendURL, a.agentID, a.authManager.GetAddress(), tokenID)
+	return SubmitForReviewDetailed(a.backendURL, a.agentID, a.authManager.GetAddress(), tokenID, a.additionalHeaders)
 }
 
 // SubmitForReview submits the agent for public visibility review on the Teneo network.

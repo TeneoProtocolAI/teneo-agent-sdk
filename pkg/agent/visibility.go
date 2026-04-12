@@ -56,7 +56,7 @@ type SubmitForReviewResult struct {
 //	    "creator_wallet": "0xYourWalletAddress",
 //	    "token_id": 42
 //	}
-func SubmitForReviewDetailed(backendURL, agentID, creatorWallet string, tokenID uint64) (*SubmitForReviewResult, error) {
+func SubmitForReviewDetailed(backendURL, agentID, creatorWallet string, tokenID uint64, headers ...map[string]string) (*SubmitForReviewResult, error) {
 	backendURL = strings.TrimRight(backendURL, "/")
 
 	reqBody, err := json.Marshal(map[string]interface{}{
@@ -68,7 +68,20 @@ func SubmitForReviewDetailed(backendURL, agentID, creatorWallet string, tokenID 
 	}
 
 	url := fmt.Sprintf("%s/api/agents/%s/submit-for-review", backendURL, agentID)
-	resp, err := http.Post(url, "application/json", bytes.NewReader(reqBody))
+	req, err := http.NewRequest("POST", url, bytes.NewReader(reqBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Apply additional headers (e.g. X-Agent-Approve-Key for auto-approval)
+	if len(headers) > 0 && headers[0] != nil {
+		for k, v := range headers[0] {
+			req.Header.Set(k, v)
+		}
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
@@ -91,8 +104,8 @@ func SubmitForReviewDetailed(backendURL, agentID, creatorWallet string, tokenID 
 	return &submitResp, nil
 }
 
-func SubmitForReview(backendURL, agentID, creatorWallet string, tokenID uint64) error {
-	_, err := SubmitForReviewDetailed(backendURL, agentID, creatorWallet, tokenID)
+func SubmitForReview(backendURL, agentID, creatorWallet string, tokenID uint64, headers ...map[string]string) error {
+	_, err := SubmitForReviewDetailed(backendURL, agentID, creatorWallet, tokenID, headers...)
 	return err
 }
 
