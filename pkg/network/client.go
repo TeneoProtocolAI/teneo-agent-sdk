@@ -356,9 +356,6 @@ func (c *NetworkClient) writeMessages() {
 				continue
 			}
 
-			// Add debug logging to see what we're actually sending over WebSocket
-			log.Printf("🐛 DEBUG: Sending WebSocket message: %s", string(data))
-
 			if err := c.conn.WriteMessage(websocket.TextMessage, data); err != nil {
 				log.Printf("❌ Write error: %v", err)
 				if c.reconnector.enabled && atomic.CompareAndSwapInt32(&c.reconnecting, 0, 1) {

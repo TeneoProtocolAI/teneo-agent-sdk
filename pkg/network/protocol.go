@@ -207,7 +207,6 @@ func (p *ProtocolHandler) HandleError(msg *types.Message) error {
 
 // HandlePong handles pong responses
 func (p *ProtocolHandler) HandlePong(msg *types.Message) error {
-	log.Printf("🏓 Received pong: %s", msg.Content)
 	return nil
 }
 
