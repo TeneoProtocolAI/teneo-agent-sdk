@@ -79,8 +79,11 @@ type Config struct {
 	RedisUseTLS    bool   `json:"redis_use_tls"`    // Enable TLS/SSL (required for managed Redis)
 
 	// Slack alerting configuration
-	SlackWebhookURL          string `json:"slack_webhook_url"`           // Slack webhook URL for failure alerts
+	SlackWebhookURL           string `json:"slack_webhook_url"`            // Slack webhook URL for failure alerts
 	SlackAlertThrottleSeconds int    `json:"slack_alert_throttle_seconds"` // Throttle window in seconds (default: 60)
+
+	// Additional HTTP headers sent during WebSocket handshake
+	AdditionalHeaders map[string]string `json:"additional_headers,omitempty"`
 }
 
 // ResolveCapabilities returns the full Capability objects for this config.

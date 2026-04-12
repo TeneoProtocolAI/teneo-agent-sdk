@@ -278,13 +278,14 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 
 	// Initialize network client
 	networkConfig := &network.Config{
-		WebSocketURL:     config.Config.WebSocketURL,
-		ReconnectEnabled: config.Config.ReconnectEnabled,
-		ReconnectDelay:   config.Config.ReconnectDelay,
-		MaxReconnects:    config.Config.MaxReconnects,
-		MessageTimeout:   config.Config.MessageTimeout,
-		PingInterval:     config.Config.PingInterval,
-		HandshakeTimeout: config.Config.HandshakeTimeout,
+		WebSocketURL:      config.Config.WebSocketURL,
+		ReconnectEnabled:  config.Config.ReconnectEnabled,
+		ReconnectDelay:    config.Config.ReconnectDelay,
+		MaxReconnects:     config.Config.MaxReconnects,
+		MessageTimeout:    config.Config.MessageTimeout,
+		PingInterval:      config.Config.PingInterval,
+		HandshakeTimeout:  config.Config.HandshakeTimeout,
+		AdditionalHeaders: config.Config.AdditionalHeaders,
 	}
 	agent.networkClient = network.NewNetworkClient(networkConfig)
 

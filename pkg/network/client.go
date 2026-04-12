@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,19 +16,20 @@ import (
 
 // NetworkClient handles WebSocket communication for Teneo agents
 type NetworkClient struct {
-	conn            *websocket.Conn
-	url             string
-	messageHandlers map[string]MessageHandler
-	reconnector     *ReconnectionManager
-	authenticated   bool
-	running         bool
-	reconnecting    int32 // atomic flag for reconnection state
-	mu              sync.RWMutex
-	ctx             context.Context
-	cancel          context.CancelFunc
-	sendChan        chan *types.Message
-	receiveChan     chan *types.Message
-	wg              sync.WaitGroup // For goroutine lifecycle management
+	conn              *websocket.Conn
+	url               string
+	additionalHeaders http.Header
+	messageHandlers   map[string]MessageHandler
+	reconnector       *ReconnectionManager
+	authenticated     bool
+	running           bool
+	reconnecting      int32 // atomic flag for reconnection state
+	mu                sync.RWMutex
+	ctx               context.Context
+	cancel            context.CancelFunc
+	sendChan          chan *types.Message
+	receiveChan       chan *types.Message
+	wg                sync.WaitGroup // For goroutine lifecycle management
 
 	// Resilience components
 	circuitBreaker *CircuitBreaker
@@ -41,13 +43,14 @@ type MessageHandler func(*types.Message) error
 
 // Config represents network configuration
 type Config struct {
-	WebSocketURL     string
-	ReconnectEnabled bool
-	ReconnectDelay   time.Duration
-	MaxReconnects    int
-	MessageTimeout   time.Duration
-	PingInterval     time.Duration
-	HandshakeTimeout time.Duration
+	WebSocketURL       string
+	ReconnectEnabled   bool
+	ReconnectDelay     time.Duration
+	MaxReconnects      int
+	MessageTimeout     time.Duration
+	PingInterval       time.Duration
+	HandshakeTimeout   time.Duration
+	AdditionalHeaders  map[string]string // Extra HTTP headers sent during WebSocket handshake
 }
 
 // DefaultNetworkConfig returns default network configuration
@@ -67,15 +70,25 @@ func DefaultNetworkConfig() *Config {
 func NewNetworkClient(config *Config) *NetworkClient {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// Build HTTP headers from AdditionalHeaders map
+	var headers http.Header
+	if len(config.AdditionalHeaders) > 0 {
+		headers = make(http.Header, len(config.AdditionalHeaders))
+		for k, v := range config.AdditionalHeaders {
+			headers.Set(k, v)
+		}
+	}
+
 	client := &NetworkClient{
-		url:             config.WebSocketURL,
-		messageHandlers: make(map[string]MessageHandler),
-		authenticated:   false,
-		running:         false,
-		ctx:             ctx,
-		cancel:          cancel,
-		sendChan:        make(chan *types.Message, 100),
-		receiveChan:     make(chan *types.Message, 100),
+		url:               config.WebSocketURL,
+		additionalHeaders: headers,
+		messageHandlers:   make(map[string]MessageHandler),
+		authenticated:     false,
+		running:           false,
+		ctx:               ctx,
+		cancel:            cancel,
+		sendChan:          make(chan *types.Message, 100),
+		receiveChan:       make(chan *types.Message, 100),
 	}
 
 	client.reconnector = &ReconnectionManager{
@@ -116,7 +129,7 @@ func (c *NetworkClient) Connect() error {
 	dialer := websocket.DefaultDialer
 	dialer.HandshakeTimeout = 10 * time.Second
 
-	conn, _, err := dialer.Dial(c.url, nil)
+	conn, _, err := dialer.Dial(c.url, c.additionalHeaders)
 	if err != nil {
 		return fmt.Errorf("failed to connect to WebSocket: %w", err)
 	}
@@ -446,7 +459,7 @@ func (c *NetworkClient) reconnect() error {
 	dialer := websocket.DefaultDialer
 	dialer.HandshakeTimeout = 10 * time.Second
 
-	conn, _, err := dialer.Dial(c.url, nil)
+	conn, _, err := dialer.Dial(c.url, c.additionalHeaders)
 	if err != nil {
 		return fmt.Errorf("failed to reconnect to WebSocket: %w", err)
 	}
