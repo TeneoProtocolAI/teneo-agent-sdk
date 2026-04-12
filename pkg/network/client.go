@@ -56,7 +56,7 @@ func DefaultNetworkConfig() *Config {
 		WebSocketURL:     "ws://localhost:8090/ws",
 		ReconnectEnabled: true,
 		ReconnectDelay:   5 * time.Second,
-		MaxReconnects:    10,
+		MaxReconnects:    0, // 0 (or negative) = retry forever
 		MessageTimeout:   30 * time.Second,
 		PingInterval:     30 * time.Second,
 		HandshakeTimeout: 10 * time.Second,
@@ -399,8 +399,13 @@ func (c *NetworkClient) attemptReconnection() {
 	backoff := c.reconnector.NextBackoff()
 	c.mu.Unlock()
 
-	log.Printf("🔄 Reconnection attempt %d/%d in %v...",
-		c.reconnector.attempts, c.reconnector.maxAttempts, backoff)
+	if c.reconnector.maxAttempts <= 0 {
+		log.Printf("🔄 Reconnection attempt %d (∞) in %v...",
+			c.reconnector.attempts, backoff)
+	} else {
+		log.Printf("🔄 Reconnection attempt %d/%d in %v...",
+			c.reconnector.attempts, c.reconnector.maxAttempts, backoff)
+	}
 
 	// Sleep without holding lock
 	time.Sleep(backoff)
