@@ -88,6 +88,11 @@ func (t *TestMessageSender) TriggerWalletTx(tx types.TxRequest, description stri
 	return nil
 }
 
+// TriggerWalletSignature implements off-chain signature triggering (no-op in tests)
+func (t *TestMessageSender) TriggerWalletSignature(req types.SignatureRequest, description string) error {
+	return nil
+}
+
 // GetRequesterWalletAddress returns empty string for tests
 func (t *TestMessageSender) GetRequesterWalletAddress() string {
 	return ""
