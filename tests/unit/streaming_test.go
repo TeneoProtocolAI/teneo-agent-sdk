@@ -79,6 +79,9 @@ func (s *streamMockSender) SendErrorMessage(content string, errorCode string, de
 func (s *streamMockSender) TriggerWalletTx(tx types.TxRequest, description string, optional bool) error {
 	return nil
 }
+func (s *streamMockSender) TriggerWalletSignature(req types.SignatureRequest, description string) error {
+	return nil
+}
 func (s *streamMockSender) GetRequesterWalletAddress() string { return "" }
 
 func (s *streamMockSender) SendChunk(content string) error {

@@ -85,6 +85,11 @@ func (t *TaskMessageSenderTest) TriggerWalletTx(tx types.TxRequest, description 
 	return nil
 }
 
+func (t *TaskMessageSenderTest) TriggerWalletSignature(req types.SignatureRequest, description string) error {
+	// Mock implementation - just log the request
+	return nil
+}
+
 func (t *TaskMessageSenderTest) sendStandardizedMessage(msgType string, content interface{}) error {
 	standardizedMsg := types.StandardizedMessage{
 		ContentType: msgType,

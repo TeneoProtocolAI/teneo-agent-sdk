@@ -136,6 +136,54 @@ func (s *TaskMessageSender) TriggerWalletTx(tx types.TxRequest, description stri
 	return s.protocolHandler.client.SendMessage(msg)
 }
 
+// TriggerWalletSignature requests an off-chain signature (EIP-712 or personal_sign)
+// from the user's wallet. Forwarding the returned signature to any external
+// endpoint is the agent's responsibility.
+func (s *TaskMessageSender) TriggerWalletSignature(req types.SignatureRequest, description string) error {
+	if description == "" {
+		return fmt.Errorf("description is required")
+	}
+	switch req.Method {
+	case types.SignMethodTypedDataV4:
+		if len(req.TypedData) == 0 {
+			return fmt.Errorf("typed_data is required for %s", req.Method)
+		}
+	case types.SignMethodPersonalSign:
+		if req.Message == "" {
+			return fmt.Errorf("message is required for %s", req.Method)
+		}
+	case "":
+		return fmt.Errorf("signature method is required")
+	default:
+		return fmt.Errorf("unsupported signature method: %s", req.Method)
+	}
+
+	sigData := types.TriggerWalletSignatureData{
+		TaskID:      s.taskID,
+		Signature:   req,
+		Description: description,
+	}
+
+	dataBytes, err := json.Marshal(sigData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal signature data: %w", err)
+	}
+
+	msg := &types.Message{
+		Type:          types.MessageTypeTriggerWalletSignature,
+		From:          s.protocolHandler.GetWalletAddress(),
+		Room:          s.room,
+		DataRoom:      s.room,
+		MessageRoomId: s.room,
+		Content:       description,
+		TaskID:        s.taskID,
+		Data:          dataBytes,
+		Timestamp:     time.Now(),
+	}
+
+	return s.protocolHandler.client.SendMessage(msg)
+}
+
 // sendStandardizedMessage sends a message in standardized format
 func (s *TaskMessageSender) sendStandardizedMessage(msgType string, content interface{}) error {
 	var contentStr string
@@ -189,6 +237,7 @@ func NewTaskCoordinator(agentHandler types.AgentHandler, protocolHandler *Protoc
 	protocolHandler.client.RegisterHandler("task", coordinator.HandleIncomingTask)
 	protocolHandler.client.RegisterHandler("message", coordinator.HandleUserMessage)
 	protocolHandler.client.RegisterHandler("tx_result", coordinator.HandleTxResultMessage)
+	protocolHandler.client.RegisterHandler("signature_result", coordinator.HandleSignatureResultMessage)
 
 	return coordinator
 }
@@ -362,6 +411,48 @@ func (t *TaskCoordinator) HandleTxResultMessage(msg *types.Message) error {
 
 		if err := txResultHandler.HandleTxResult(ctx, resultData, room, messageSender); err != nil {
 			log.Printf("❌ Agent HandleTxResult failed for task %s: %v", resultData.TaskID, err)
+		}
+	}()
+	return nil
+}
+
+// HandleSignatureResultMessage handles incoming signature_result messages from the coordinator.
+// These are sent by the user's wallet after signing (or rejecting) an off-chain signature
+// that was requested via TriggerWalletSignature.
+func (t *TaskCoordinator) HandleSignatureResultMessage(msg *types.Message) error {
+	var resultData types.SignatureResultData
+	if msg.Data == nil {
+		log.Printf("⚠️ Received signature_result with no data payload")
+		return nil
+	}
+	if err := json.Unmarshal(msg.Data, &resultData); err != nil {
+		log.Printf("⚠️ Failed to parse signature_result data: %v", err)
+		return nil
+	}
+
+	log.Printf("📋 Received signature_result for task %s: status=%s", resultData.TaskID, resultData.Status)
+
+	sigResultHandler, ok := t.agentHandler.(types.SignatureResultHandler)
+	if !ok {
+		log.Printf("⚠️ Agent does not implement SignatureResultHandler, ignoring signature_result for task %s", resultData.TaskID)
+		return nil
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		room := msg.Room
+
+		messageSender := &TaskMessageSender{
+			taskID:          resultData.TaskID,
+			protocolHandler: t.protocolHandler,
+			room:            room,
+			requesterWallet: msg.From,
+		}
+
+		if err := sigResultHandler.HandleSignatureResult(ctx, resultData, room, messageSender); err != nil {
+			log.Printf("❌ Agent HandleSignatureResult failed for task %s: %v", resultData.TaskID, err)
 		}
 	}()
 	return nil
