@@ -137,8 +137,8 @@ func (s *TaskMessageSender) TriggerWalletTx(tx types.TxRequest, description stri
 }
 
 // TriggerWalletSignature requests an off-chain signature (EIP-712 or personal_sign)
-// from the user's wallet. Routing of the returned signature to an external endpoint
-// (e.g. AORI solver, LayerZero relayer) is the agent's responsibility.
+// from the user's wallet. Forwarding the returned signature to any external
+// endpoint is the agent's responsibility.
 func (s *TaskMessageSender) TriggerWalletSignature(req types.SignatureRequest, description string) error {
 	if description == "" {
 		return fmt.Errorf("description is required")

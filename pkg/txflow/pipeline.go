@@ -21,8 +21,8 @@ import (
 )
 
 // ActionKind discriminates the union in Step between a wallet tx and an off-chain
-// signature. Pipelines are heterogeneous by design — AORI, LayerZero v2, and
-// similar intent-based protocols interleave both in a single flow.
+// signature. Pipelines are heterogeneous by design — intent-based flows commonly
+// interleave both in a single user journey.
 type ActionKind int
 
 const (
@@ -43,9 +43,9 @@ type Step struct {
 	Optional bool
 	// OnResult fires after the step reaches a terminal status (confirmed for tx,
 	// signed for signature). The result argument is *types.TxResultData or
-	// *types.SignatureResultData depending on Kind. Use this to POST a signature
-	// to an off-chain endpoint (e.g. AORI solver, LayerZero relay) or to run any
-	// per-step bookkeeping. Returning an error aborts the pipeline with AbortReasonFailed.
+	// *types.SignatureResultData depending on Kind. Use this for per-step
+	// bookkeeping or to forward the result to an external endpoint. Returning an
+	// error aborts the pipeline with AbortReasonFailed.
 	OnResult func(ctx context.Context, result any, sender types.MessageSender) error
 }
 

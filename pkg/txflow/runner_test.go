@@ -122,7 +122,7 @@ func TestRunner_MixedTxThenSignature_RunsInOrder(t *testing.T) {
 	var sigResultCaptured atomic.Value // *types.SignatureResultData
 
 	p := Pipeline{
-		Room: "aori-room",
+		Room: "intent-room",
 		Steps: []Step{
 			{
 				Kind:        ActionKindTx,
@@ -154,7 +154,7 @@ func TestRunner_MixedTxThenSignature_RunsInOrder(t *testing.T) {
 	// Confirm tx — should trigger sig step.
 	r.HandleTxResult(context.Background(), types.TxResultData{
 		TaskID: "t", Status: types.TxStatusConfirmed, TxHash: "0x1",
-	}, "aori-room", sender)
+	}, "intent-room", sender)
 	if len(sender.snapshotSig()) != 1 {
 		t.Fatalf("expected 1 sig trigger after tx confirm, got %d", len(sender.snapshotSig()))
 	}
@@ -162,7 +162,7 @@ func TestRunner_MixedTxThenSignature_RunsInOrder(t *testing.T) {
 	// Deliver signature — pipeline completes, OnResult fires.
 	r.HandleSignatureResult(context.Background(), types.SignatureResultData{
 		TaskID: "t", Status: types.SignatureStatusSigned, Signature: "0xdeadbeef",
-	}, "aori-room", sender)
+	}, "intent-room", sender)
 
 	got := sigResultCaptured.Load()
 	if got == nil {
@@ -172,7 +172,7 @@ func TestRunner_MixedTxThenSignature_RunsInOrder(t *testing.T) {
 	if sig.Signature != "0xdeadbeef" {
 		t.Fatalf("unexpected signature: %q", sig.Signature)
 	}
-	if r.HasPipeline("aori-room") {
+	if r.HasPipeline("intent-room") {
 		t.Fatal("pipeline should be GC'd after completion")
 	}
 }

@@ -42,9 +42,8 @@ type TxResultHandler interface {
 // SignatureResultHandler is an optional interface for agents that need to handle
 // off-chain signature results from wallet interactions (EIP-712 / personal_sign).
 // Agents that call TriggerWalletSignature should implement this to receive the
-// user's signature_result response. The signature hex is then typically POST'd to
-// an off-chain endpoint (AORI solver, LayerZero relay, CowSwap book, etc.); that
-// wiring is the agent's responsibility, not the SDK's.
+// user's signature_result response. Forwarding the signature to any external
+// endpoint is the agent's responsibility, not the SDK's.
 type SignatureResultHandler interface {
 	HandleSignatureResult(ctx context.Context, result SignatureResultData, room string, sender MessageSender) error
 }
@@ -66,9 +65,9 @@ type MessageSender interface {
 	// TriggerWalletTx requests the user to sign a wallet transaction
 	TriggerWalletTx(tx TxRequest, description string, optional bool) error
 	// TriggerWalletSignature requests an off-chain signature from the user's wallet
-	// (EIP-712 typed data or personal_sign). Intent-based protocols (AORI, LayerZero,
-	// CowSwap, Across) use this; there is no "optional" — signing is always required
-	// to advance the flow, so the flag present on TriggerWalletTx is deliberately omitted.
+	// (EIP-712 typed data or personal_sign). Unlike TriggerWalletTx, there is no
+	// "optional" flag — a missing signature cannot be substituted with anything
+	// else, so the flow cannot advance without it.
 	TriggerWalletSignature(req SignatureRequest, description string) error
 	// GetRequesterWalletAddress returns the wallet address of the user who initiated the task.
 	// Used for operations that must route funds to the requester (e.g. swap output).
