@@ -29,6 +29,7 @@ func main() {
 
 	// demonstrate agent config integration
 	demonstrateAgentConfigIntegration()
+	demonstrateReservedNames()
 }
 
 func demonstrateBasicValidation() {
