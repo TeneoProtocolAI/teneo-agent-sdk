@@ -473,7 +473,6 @@ func (a *EnhancedAgent) Stop() error {
 	log.Printf("🛑 Stopping enhanced agent: %s", a.config.Name)
 
 	a.running = false
-	a.cancel()
 
 	// Cancel all active tasks
 	a.taskCoordinator.CancelAllTasks()
@@ -490,6 +489,9 @@ func (a *EnhancedAgent) Stop() error {
 		log.Printf("⚠️ Error disconnecting from network: %v", err)
 	}
 
+
+        // NOW cancel the context
+        a.cancel()
 	// Close cache connection
 	if a.agentCache != nil {
 		if err := a.agentCache.Close(); err != nil {
@@ -497,9 +499,11 @@ func (a *EnhancedAgent) Stop() error {
 		}
 	}
 
-	// Cleanup agent handler if it supports cleanup
+	// Cleanup agent handler with fresh context
 	if cleaner, ok := a.agentHandler.(types.AgentCleaner); ok {
-		if err := cleaner.Cleanup(a.ctx); err != nil {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cleanupCancel()
+		if err := cleaner.Cleanup(cleanupCtx); err != nil {
 			log.Printf("⚠️ Error cleaning up agent handler: %v", err)
 		}
 	}
