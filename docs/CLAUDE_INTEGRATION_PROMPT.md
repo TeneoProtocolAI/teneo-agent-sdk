@@ -78,6 +78,16 @@ type TaskStreamHandler interface {
 - **Type safety** - Proper type conversions, validation of inputs
 - **Graceful degradation** - If external services fail, return useful error messages
 
+## Agent Metadata (JSON)
+
+When creating the agent metadata JSON for minting, **always reference the example files** in `agent-json-examples/` for the correct format. See `agent-json-examples/README.md` for the full list.
+
+Key rules:
+- Use **snake_case** for field names: `agent_id`, `agent_type`, `nlp_fallback`
+- `capabilities` must be an array of **objects** with `name` and `description` fields (NOT strings)
+- `metadata_version` is **required** (currently `"2.4.0"`)
+- `categories` is **required** (1-2 string items)
+
 ## Configuration Guidelines
 
 Choose appropriate capabilities based on what my code does. Examples:

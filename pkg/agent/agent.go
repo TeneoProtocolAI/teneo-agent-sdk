@@ -13,6 +13,7 @@ import (
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/auth"
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/nft"
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/types"
+	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/version"
 )
 
 // Agent represents a Teneo agent instance
@@ -152,13 +153,13 @@ func (a *Agent) registerWithNetwork() error {
 		mintRequest := &types.MintRequest{
 			Name:           a.config.Name,
 			Description:    a.config.Description,
-			Capabilities:   a.config.Capabilities,
+			Capabilities:   a.config.ResolveCapabilities(),
 			ContactInfo:    a.config.ContactInfo,
 			PricingModel:   a.config.PricingModel,
 			InterfaceType:  a.config.InterfaceType,
 			ResponseFormat: a.config.ResponseFormat,
 			Version:        a.config.Version,
-			SDKVersion:     "1.0.0",
+			SDKVersion:     version.Version(),
 		}
 
 		// Mint new business card

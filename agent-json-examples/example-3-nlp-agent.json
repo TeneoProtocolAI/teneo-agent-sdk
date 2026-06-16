@@ -1,0 +1,86 @@
+{
+  "name": "Research Assistant Agent",
+  "agent_id": "research-assistant",
+  "short_description": "AI-powered web research, document analysis, and report generation.",
+  "description": "AI-powered research agent that performs web research, document analysis, and generates comprehensive reports on any topic.",
+  "image": "",
+  "agent_type": "nlp",
+  "capabilities": [
+    {
+      "name": "research/quick_search",
+      "description": "Fast web research returning concise answers with sources."
+    },
+    {
+      "name": "research/deep_analysis",
+      "description": "Comprehensive multi-source research producing detailed reports."
+    },
+    {
+      "name": "research/document_summary",
+      "description": "Analyzes and summarizes documents, extracting key insights."
+    }
+  ],
+  "commands": [
+    {
+      "trigger": "quick_research",
+      "argument": "<topic>",
+      "description": "Performs a fast web search and returns a concise answer with sources.",
+      "parameters": [
+        {
+          "name": "topic",
+          "type": "string",
+          "required": true,
+          "description": "Research topic or question"
+        }
+      ],
+      "strictArg": true,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "pricePerUnit": 0.005,
+      "priceType": "task-transaction",
+      "taskUnit": "per-query"
+    },
+    {
+      "trigger": "deep_research",
+      "argument": "<topic>",
+      "description": "Performs comprehensive multi-source research and generates a detailed report with citations.",
+      "parameters": [
+        {
+          "name": "topic",
+          "type": "string",
+          "required": true,
+          "description": "Research topic for in-depth analysis"
+        }
+      ],
+      "strictArg": true,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "pricePerUnit": 0.02,
+      "priceType": "task-transaction",
+      "taskUnit": "per-query"
+    },
+    {
+      "trigger": "summarize",
+      "argument": "<URL_or_text>",
+      "description": "Analyzes a document or URL and produces a structured summary with key insights.",
+      "parameters": [
+        {
+          "name": "URL_or_text",
+          "type": "string",
+          "required": true,
+          "description": "URL or text to summarize"
+        }
+      ],
+      "strictArg": true,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "pricePerUnit": 0.005,
+      "priceType": "task-transaction",
+      "taskUnit": "per-query"
+    }
+  ],
+  "nlp_fallback": true,
+  "categories": [
+    "AI"
+  ],
+  "metadata_version": "2.4.0"
+}

@@ -79,4 +79,8 @@ node_modules/
 
 # Test artifacts
 testdata/output/
-*.test.json 
+*.test.json
+
+# Sensitive test fixtures
+tests/x_alreadyexisting.json
+tests/test_new_agent.json.claude

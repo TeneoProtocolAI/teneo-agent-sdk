@@ -46,6 +46,11 @@ type SimpleOpenAIAgentConfig struct {
 	// Optional: Mint new NFT (defaults to false)
 	Mint bool
 
+	// Optional: Submit agent for public visibility review after startup (defaults to false).
+	// The agent goes through a review process (up to 72 hours) before becoming publicly visible.
+	// The agent must stay online during review.
+	SubmitForReview bool
+
 	// Optional: WebSocket URL (defaults to env WEBSOCKET_URL or standard endpoint)
 	WebSocketURL string
 
@@ -154,12 +159,12 @@ Remember: You should answer all user questions. Do not refuse to answer based on
 				log.Printf("✅ Using existing NFT Token ID: %d", tokenID)
 			} else {
 				// Invalid token ID in env, enable minting
-				log.Printf("⚠️ Invalid NFT_TOKEN_ID in environment, will mint new NFT")
+				log.Printf("⚠️ Invalid NFT_TOKEN_ID in environment, will deploy new NFT")
 				config.Mint = true
 			}
 		} else {
-			// No token ID provided anywhere, enable minting
-			log.Printf("🎨 No NFT_TOKEN_ID found, will mint new NFT")
+			// No token ID provided anywhere, enable deployment
+			log.Printf("🎨 No NFT_TOKEN_ID found, will deploy new NFT")
 			config.Mint = true
 		}
 	} else if config.TokenID > 0 {
@@ -215,13 +220,14 @@ Remember: You should answer all user questions. Do not refuse to answer based on
 	}
 
 	// Create enhanced agent
+	// Use Deploy flow (SDK endpoints) instead of legacy Mint flow
 	enhancedAgent, err := NewEnhancedAgent(&EnhancedAgentConfig{
-		Config:       sdkConfig,
-		AgentHandler: openaiAgent,
-		Mint:         config.Mint,
-		TokenID:      config.TokenID,
+		Config:          sdkConfig,
+		AgentHandler:    openaiAgent,
+		Deploy:          config.Mint,
+		TokenID:         config.TokenID,
+		SubmitForReview: config.SubmitForReview,
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to create enhanced agent: %w", err)
 	}

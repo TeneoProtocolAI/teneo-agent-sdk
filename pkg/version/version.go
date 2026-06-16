@@ -9,7 +9,7 @@ import (
 // Version information - using semantic versioning
 const (
 	Major     = 2
-	Minor     = 1
+	Minor     = 5
 	Patch     = 0
 	PreRelease = "" // e.g., "alpha", "beta", "rc1"
 	BuildMetadata = "" // e.g., "20231201.1"

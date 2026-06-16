@@ -31,6 +31,23 @@ type AgentCleaner interface {
 	Cleanup(ctx context.Context) error
 }
 
+// TxResultHandler is an optional interface for agents that need to handle
+// transaction results from wallet interactions (e.g., approve → swap flows).
+// Agents that call TriggerWalletTx should implement this to receive the user's
+// tx_result response with status updates (broadcasted, confirmed, rejected, failed).
+type TxResultHandler interface {
+	HandleTxResult(ctx context.Context, result TxResultData, room string, sender MessageSender) error
+}
+
+// SignatureResultHandler is an optional interface for agents that need to handle
+// off-chain signature results from wallet interactions (EIP-712 / personal_sign).
+// Agents that call TriggerWalletSignature should implement this to receive the
+// user's signature_result response. Forwarding the signature to any external
+// endpoint is the agent's responsibility, not the SDK's.
+type SignatureResultHandler interface {
+	HandleSignatureResult(ctx context.Context, result SignatureResultData, room string, sender MessageSender) error
+}
+
 // MessageSender interface allows agents to send messages during task execution
 type MessageSender interface {
 	// SendMessage sends a message with content (backward compatibility - STRING type)
@@ -43,6 +60,26 @@ type MessageSender interface {
 	SendMessageAsMD(content string) error
 	// SendMessageAsArray sends array/list data
 	SendMessageAsArray(content []interface{}) error
+	// SendErrorMessage sends an error message to the user without triggering a transaction
+	SendErrorMessage(content string, errorCode string, details map[string]interface{}) error
+	// TriggerWalletTx requests the user to sign a wallet transaction
+	TriggerWalletTx(tx TxRequest, description string, optional bool) error
+	// TriggerWalletSignature requests an off-chain signature from the user's wallet
+	// (EIP-712 typed data or personal_sign). Unlike TriggerWalletTx, there is no
+	// "optional" flag — a missing signature cannot be substituted with anything
+	// else, so the flow cannot advance without it.
+	TriggerWalletSignature(req SignatureRequest, description string) error
+	// GetRequesterWalletAddress returns the wallet address of the user who initiated the task.
+	// Used for operations that must route funds to the requester (e.g. swap output).
+	// Returns empty string if the requester is unknown (e.g. task from coordinator).
+	GetRequesterWalletAddress() string
+	// SendChunk sends a single streaming chunk to the client.
+	// Each chunk is delivered as a task_response with stream metadata (seq/final).
+	// Content is appended to the accumulated response on the client side.
+	SendChunk(content string) error
+	// SendStreamEnd signals the end of a streaming response.
+	// Must be called after the last SendChunk to finalize the stream.
+	SendStreamEnd() error
 }
 
 // StreamingTaskHandler is an optional interface for agents that need to send multiple messages during task execution
@@ -89,7 +126,7 @@ type AgentStatus struct {
 	ID              string            `json:"id"`
 	Name            string            `json:"name"`
 	Version         string            `json:"version"`
-	Capabilities    []string          `json:"capabilities"`
+	Capabilities    []Capability      `json:"capabilities"`
 	IsActive        bool              `json:"is_active"`
 	IsOnline        bool              `json:"is_online"`
 	TasksProcessed  int64             `json:"tasks_processed"`
@@ -111,7 +148,15 @@ type AgentMetrics struct {
 	LastUpdated         time.Time     `json:"last_updated"`
 }
 
+// Capability represents an agent capability with name and description.
+// This is the standard capability format used across the Teneo ecosystem.
+type Capability struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+}
+
 // AgentCapability represents a capability that an agent can perform
+// Deprecated: Use Capability instead for consistency with the rest of the ecosystem.
 type AgentCapability struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
@@ -133,7 +178,7 @@ type AgentConfig struct {
 	Name               string            `json:"name"`
 	Description        string            `json:"description"`
 	Version            string            `json:"version"`
-	Capabilities       []string          `json:"capabilities"`
+	Capabilities       []Capability      `json:"capabilities"`
 	ContactInfo        string            `json:"contact_info"`
 	PricingModel       string            `json:"pricing_model"`
 	InterfaceType      string            `json:"interface_type"`
@@ -224,6 +269,26 @@ const (
 	LogLevelWarn  = "warn"
 	LogLevelError = "error"
 )
+
+// CapabilitiesFromStrings converts a slice of capability name strings
+// to Capability objects. Useful for backward compatibility when migrating
+// from []string to []Capability.
+func CapabilitiesFromStrings(names []string) []Capability {
+	caps := make([]Capability, len(names))
+	for i, name := range names {
+		caps[i] = Capability{Name: name}
+	}
+	return caps
+}
+
+// CapabilityNames extracts just the name strings from a slice of Capabilities.
+func CapabilityNames(caps []Capability) []string {
+	names := make([]string, len(caps))
+	for i, cap := range caps {
+		names[i] = cap.Name
+	}
+	return names
+}
 
 // Common capabilities
 var StandardCapabilities = []string{

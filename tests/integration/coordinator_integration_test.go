@@ -71,6 +71,25 @@ func (t *TaskMessageSenderTest) SendMessageAsArray(content []interface{}) error 
 	return t.sendStandardizedMessage(types.StandardMessageTypeArray, content)
 }
 
+func (t *TaskMessageSenderTest) SendErrorMessage(content string, errorCode string, details map[string]interface{}) error {
+	errorContent := map[string]interface{}{
+		"error":   content,
+		"code":    errorCode,
+		"details": details,
+	}
+	return t.sendStandardizedMessage(types.StandardMessageTypeJSON, errorContent)
+}
+
+func (t *TaskMessageSenderTest) TriggerWalletTx(tx types.TxRequest, description string, optional bool) error {
+	// Mock implementation - just log the request
+	return nil
+}
+
+func (t *TaskMessageSenderTest) TriggerWalletSignature(req types.SignatureRequest, description string) error {
+	// Mock implementation - just log the request
+	return nil
+}
+
 func (t *TaskMessageSenderTest) sendStandardizedMessage(msgType string, content interface{}) error {
 	standardizedMsg := types.StandardizedMessage{
 		ContentType: msgType,

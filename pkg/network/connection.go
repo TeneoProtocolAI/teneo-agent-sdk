@@ -13,9 +13,16 @@ type ReconnectionManager struct {
 	backoffFunc func(int) time.Duration
 }
 
-// ShouldReconnect returns whether reconnection should be attempted
+// ShouldReconnect returns whether reconnection should be attempted.
+// A non-positive maxAttempts means "retry forever".
 func (r *ReconnectionManager) ShouldReconnect() bool {
-	return r.enabled && r.attempts < r.maxAttempts
+	if !r.enabled {
+		return false
+	}
+	if r.maxAttempts <= 0 {
+		return true
+	}
+	return r.attempts < r.maxAttempts
 }
 
 // NextBackoff calculates the next backoff delay

@@ -1,0 +1,40 @@
+{
+  "name": "My Agent Name",
+  "agent_id": "my-agent-name",
+  "short_description": "Brief one-line summary of what your agent does.",
+  "description": "A clear description of what this agent does (minimum 10 characters).",
+  "image": "",
+  "agent_type": "command",
+  "capabilities": [
+    {
+      "name": "example_capability",
+      "description": "Description of what this capability does"
+    }
+  ],
+  "commands": [
+    {
+      "trigger": "example_command",
+      "argument": "<input>",
+      "description": "Description of what this command does",
+      "parameters": [
+        {
+          "name": "input",
+          "type": "string",
+          "required": true,
+          "description": "The input for this command"
+        }
+      ],
+      "strictArg": true,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "pricePerUnit": 0.001,
+      "priceType": "task-transaction",
+      "taskUnit": "per-query"
+    }
+  ],
+  "nlp_fallback": false,
+  "categories": [
+    "Developer Tools"
+  ],
+  "metadata_version": "2.4.0"
+}

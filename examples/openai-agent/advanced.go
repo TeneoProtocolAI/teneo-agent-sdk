@@ -49,6 +49,7 @@ Always be polite, patient, and solution-oriented.`,
 		TokenID: 12345, // Use your existing NFT token ID
 
 		// Optional: Network configuration
+
 		WebSocketURL: "wss://backend.developer.chatroom.teneo-protocol.ai/ws",
 		Room:         "support-room",
 	})

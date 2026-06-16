@@ -1,6 +1,6 @@
 module github.com/TeneoProtocolAI/teneo-agent-sdk/examples/standardized-messaging
 
-go 1.21
+go 1.24.0
 
 require github.com/TeneoProtocolAI/teneo-agent-sdk v0.0.0
 

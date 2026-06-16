@@ -1,0 +1,113 @@
+{
+  "name": "Location Intelligence Agent",
+  "agent_id": "location-intel-agent",
+  "short_description": "Place discovery, summaries, and review extraction for travel and business research.",
+  "description": "Location intelligence agent that provides place discovery, summaries, and review extraction for travel and business research.",
+  "image": "",
+  "agent_type": "command",
+  "capabilities": [
+    {
+      "name": "location/place_search",
+      "description": "Searches places by keyword and optional city filter with structured result output."
+    },
+    {
+      "name": "location/place_summary",
+      "description": "Returns normalized place summary data such as rating, category, address, and opening status."
+    },
+    {
+      "name": "location/review_sampling",
+      "description": "Extracts representative review snippets for quick qualitative analysis."
+    }
+  ],
+  "commands": [
+    {
+      "trigger": "search_places",
+      "argument": "<query> <count>",
+      "description": "Searches places by query with optional city and count parameters. Returns structured results with name, address, rating, and category.",
+      "parameters": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "description": "Search query (e.g., 'coffee shops in Berlin')"
+        },
+        {
+          "name": "count",
+          "type": "number",
+          "required": true,
+          "minValue": "1",
+          "description": "Number of results to return",
+          "isBillingCount": true
+        }
+      ],
+      "strictArg": true,
+      "minArgs": 2,
+      "maxArgs": 2,
+      "pricePerUnit": 0.0015,
+      "priceType": "task-transaction",
+      "taskUnit": "per-item"
+    },
+    {
+      "trigger": "place_summary",
+      "argument": "<place_id>",
+      "description": "Fetches a detailed summary for a single place including rating, category, address, opening hours, and contact info.",
+      "parameters": [
+        {
+          "name": "place_id",
+          "type": "string",
+          "required": true,
+          "description": "Place identifier or name"
+        }
+      ],
+      "strictArg": true,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "pricePerUnit": 0.02,
+      "priceType": "task-transaction",
+      "taskUnit": "per-query"
+    },
+    {
+      "trigger": "top_reviews",
+      "argument": "<place_id> <count>",
+      "description": "Returns top or most relevant reviews for a place.",
+      "parameters": [
+        {
+          "name": "place_id",
+          "type": "string",
+          "required": true,
+          "description": "Place identifier or name"
+        },
+        {
+          "name": "count",
+          "type": "number",
+          "required": true,
+          "minValue": "1",
+          "description": "Number of reviews to return",
+          "isBillingCount": true
+        }
+      ],
+      "strictArg": true,
+      "minArgs": 2,
+      "maxArgs": 2,
+      "pricePerUnit": 0.002,
+      "priceType": "task-transaction",
+      "taskUnit": "per-item"
+    },
+    {
+      "trigger": "help",
+      "description": "Lists all commands, required inputs, and output format notes.",
+      "parameters": [],
+      "strictArg": true,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "pricePerUnit": 0,
+      "priceType": "task-transaction",
+      "taskUnit": "per-query"
+    }
+  ],
+  "nlp_fallback": false,
+  "categories": [
+    "Travel"
+  ],
+  "metadata_version": "2.4.0"
+}

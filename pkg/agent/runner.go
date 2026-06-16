@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -12,8 +13,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/alerting"
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/auth"
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/cache"
+	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/deploy"
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/health"
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/network"
 	"github.com/TeneoProtocolAI/teneo-agent-sdk/pkg/nft"
@@ -23,19 +26,24 @@ import (
 
 // EnhancedAgent represents a fully functional Teneo network agent with all capabilities
 type EnhancedAgent struct {
-	config          *Config
-	agentHandler    types.AgentHandler
-	authManager     *auth.Manager
-	networkClient   *network.NetworkClient
-	protocolHandler *network.ProtocolHandler
-	taskCoordinator *network.TaskCoordinator
-	healthServer    *health.Server
-	agentCache      cache.AgentCache
-	running         bool
-	startTime       time.Time
-	mu              sync.RWMutex
-	ctx             context.Context
-	cancel          context.CancelFunc
+	config               *Config
+	agentHandler         types.AgentHandler
+	authManager          *auth.Manager
+	networkClient        *network.NetworkClient
+	protocolHandler      *network.ProtocolHandler
+	taskCoordinator      *network.TaskCoordinator
+	healthServer         *health.Server
+	agentCache           cache.AgentCache
+	alerter              *alerting.SlackAlerter
+	backendURL           string
+	agentID              string
+	additionalHeaders    map[string]string
+	submitForReviewOnRun bool
+	running              bool
+	startTime            time.Time
+	mu                   sync.RWMutex
+	ctx                  context.Context
+	cancel               context.CancelFunc
 }
 
 // EnhancedAgentConfig represents configuration for the enhanced agent
@@ -43,17 +51,30 @@ type EnhancedAgentConfig struct {
 	Config       *Config
 	AgentHandler types.AgentHandler
 
-	// NFT Minting Options
-	Mint    bool   // If true, mint new NFT; if false, use TokenID
-	TokenID uint64 // Required if Mint is false
+	// NFT Minting Options (choose one: Deploy, Mint, or provide TokenID)
+	Deploy  bool   // If true, use new secure deploy flow with database persistence
+	Mint    bool   // If true, use legacy mint flow (no database persistence)
+	TokenID uint64 // Required if Deploy and Mint are both false
+
+	// Deploy-specific options
+	AgentID       string // Required for Deploy, auto-generated from name if empty
+	AgentType     string // Agent type: "command", "nlp", "mcp", "commandless" (default: "command")
+	StateFilePath string // Path to state file for Deploy (default: .teneo-deploy-state.json)
 
 	// Backend Configuration
 	BackendURL  string // Default from env or "http://localhost:8080"
 	RPCEndpoint string // Ethereum RPC endpoint
+
+	// Optional: Submit agent for public visibility review after startup (defaults to false).
+	// The agent goes through a review process (up to 72 hours) before becoming publicly visible.
+	SubmitForReview bool
 }
 
 // NewEnhancedAgent creates a new enhanced agent with network capabilities
 func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
+	// Show EULA and deployment rules links at startup
+	printEULALinks()
+
 	if config.Config == nil {
 		return nil, fmt.Errorf("config is required")
 	}
@@ -65,8 +86,14 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 	if config.BackendURL == "" {
 		if backendURL := os.Getenv("BACKEND_URL"); backendURL != "" {
 			config.BackendURL = backendURL
+		} else if config.Config.WebSocketURL != "" {
+			// Derive backend URL from WebSocket URL (strip /ws, wss->https, ws->http)
+			derived := strings.TrimSuffix(config.Config.WebSocketURL, "/ws")
+			derived = strings.Replace(derived, "wss://", "https://", 1)
+			derived = strings.Replace(derived, "ws://", "http://", 1)
+			config.BackendURL = derived
 		} else {
-			config.BackendURL = "http://localhost:8080"
+			config.BackendURL = "https://backend.developer.chatroom.teneo-protocol.ai"
 		}
 	}
 
@@ -77,48 +104,109 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 		}
 	}
 
-	// Handle NFT minting or verification
-	if config.Mint {
-		// Create NFT minter
-		minter, err := nft.NewNFTMinter(config.BackendURL, config.RPCEndpoint, config.Config.PrivateKey)
+	// Handle NFT deployment/minting
+	if config.Deploy {
+		// Use the new secure deploy flow with authentication and database persistence
+		log.Printf("🚀 Deploying agent using secure SDK flow: %s", config.Config.Name)
+
+		agentID := config.AgentID
+		if agentID == "" {
+			agentID = config.Config.AgentID
+		}
+		if agentID == "" {
+			return nil, fmt.Errorf("agent_id is required: set AgentID on EnhancedAgentConfig or Config.AgentID")
+		}
+
+		// Build capabilities JSON
+		capabilitiesJSON, err := buildCapabilitiesJSON(config.Config)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build capabilities JSON: %w", err)
+		}
+
+		// Determine agent type (default to "command" for backwards compatibility)
+		agentType := config.AgentType
+		if agentType == "" {
+			agentType = "command"
+		}
+
+		// Create deploy configuration
+		deployCfg := deploy.DeployConfig{
+			BackendURL:       config.BackendURL,
+			RPCEndpoint:      config.RPCEndpoint,
+			PrivateKey:       config.Config.PrivateKey,
+			AgentID:          agentID,
+			AgentName:        config.Config.Name,
+			Description:      config.Config.Description,
+			Image:            config.Config.Image,
+			AgentType:        agentType,
+			Capabilities:     capabilitiesJSON,
+			ShortDescription: config.Config.ShortDescription,
+			TutorialURL:      config.Config.TutorialURL,
+			StateFilePath:    config.StateFilePath,
+			MetadataVersion:  "2.4.0",
+		}
+
+		// Execute deployment
+		result, err := deploy.DeployAgent(deployCfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to deploy agent: %w", err)
+		}
+
+		config.TokenID = result.TokenID
+		if result.AlreadyMinted {
+			log.Printf("✅ Agent was already deployed - Token ID: %d", result.TokenID)
+		} else {
+			log.Printf("✅ Successfully deployed agent - Token ID: %d, Tx: %s", result.TokenID, result.TxHash)
+		}
+
+		// Store token ID in environment and config for future use
+		os.Setenv("NFT_TOKEN_ID", fmt.Sprintf("%d", result.TokenID))
+		config.Config.NFTTokenID = fmt.Sprintf("%d", result.TokenID)
+	} else if config.Mint {
+		// Legacy mint flag — redirect to gasless deploy flow
+		log.Printf("🎨 Minting NFT for agent (gasless): %s", config.Config.Name)
+		minter, err := nft.NewNFTMinter(config.Config.PrivateKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create NFT minter: %w", err)
 		}
 
-		// Generate agent ID from name
-		agentID := generateAgentID(config.Config.Name)
-
-		// Prepare metadata
+		agentID := config.AgentID
+		if agentID == "" {
+			agentID = config.Config.AgentID
+		}
+		if agentID == "" {
+			return nil, fmt.Errorf("agent_id is required: set AgentID on EnhancedAgentConfig or Config.AgentID")
+		}
 		metadata := nft.AgentMetadata{
 			Name:         config.Config.Name,
 			Description:  config.Config.Description,
 			Image:        config.Config.Image,
-			Capabilities: config.Config.Capabilities,
+			Capabilities: config.Config.ResolveCapabilities(),
 			AgentID:      agentID,
 		}
 
-		log.Printf("🎨 Minting NFT for agent: %s", config.Config.Name)
+		metadataJSON, err := json.Marshal(metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal metadata: %w", err)
+		}
 
-		// Mint NFT - this will:
-		// 1. Send metadata to backend (backend uploads to IPFS)
-		// 2. Get signature from backend
-		// 3. Execute on-chain mint transaction
-		tokenID, err := minter.MintAgent(metadata)
+		result, err := minter.MintOrResumeFromJSON(metadataJSON)
 		if err != nil {
 			return nil, fmt.Errorf("failed to mint NFT: %w", err)
 		}
 
-		config.TokenID = tokenID
-		log.Printf("✅ Successfully minted NFT with token ID: %d", tokenID)
+		config.TokenID = result.TokenID
+		log.Printf("✅ Successfully minted NFT with token ID: %d", result.TokenID)
 
-		// Store token ID in environment for future use
-		os.Setenv("NFT_TOKEN_ID", fmt.Sprintf("%d", tokenID))
+		os.Setenv("NFT_TOKEN_ID", fmt.Sprintf("%d", result.TokenID))
+		config.Config.NFTTokenID = fmt.Sprintf("%d", result.TokenID)
 	} else {
 		// Verify TokenID is set
 		if config.TokenID == 0 {
 			// Try to load from environment
 			if tokenIDStr := os.Getenv("NFT_TOKEN_ID"); tokenIDStr != "" {
-				if tokenID, err := fmt.Sscanf(tokenIDStr, "%d", &config.TokenID); err != nil || tokenID != 1 {
+				// fmt.Sscanf returns count of items parsed (should be 1 for success)
+				if n, err := fmt.Sscanf(tokenIDStr, "%d", &config.TokenID); err != nil || n != 1 {
 					return nil, fmt.Errorf("invalid NFT_TOKEN_ID in environment: %s", tokenIDStr)
 				}
 			} else {
@@ -126,20 +214,23 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 			}
 		}
 
+		// Propagate TokenID to config so WebSocket auth includes it
+		config.Config.NFTTokenID = fmt.Sprintf("%d", config.TokenID)
+
 		// Generate and send metadata hash
 		metadata := nft.AgentMetadata{
 			Name:         config.Config.Name,
 			Description:  config.Config.Description,
 			Image:        config.Config.Image,
-			Capabilities: config.Config.Capabilities,
-			AgentID:      generateAgentID(config.Config.Name),
+			Capabilities: config.Config.ResolveCapabilities(),
+			AgentID:      config.AgentID,
 		}
 
 		hash := nft.GenerateMetadataHash(metadata)
 		log.Printf("📋 Using existing NFT token ID: %d with metadata hash: %s", config.TokenID, hash)
 
 		// Send metadata hash to backend
-		minter, err := nft.NewNFTMinter(config.BackendURL, config.RPCEndpoint, config.Config.PrivateKey)
+		minter, err := nft.NewNFTMinterWithConfig(config.BackendURL, config.RPCEndpoint, config.Config.PrivateKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create NFT minter: %w", err)
 		}
@@ -152,13 +243,31 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 		}
 	}
 
+	// Auto-accept EULA if ACCEPT_EULA=true
+	if strings.EqualFold(os.Getenv("ACCEPT_EULA"), "true") {
+		log.Printf("📋 Checking EULA acceptance status...")
+		if err := checkAndAcceptEULA(config.BackendURL, config.Config.PrivateKey); err != nil {
+			return nil, fmt.Errorf("EULA acceptance failed: %w", err)
+		}
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// Resolve agent ID
+	resolvedAgentID := config.AgentID
+	if resolvedAgentID == "" {
+		resolvedAgentID = config.Config.AgentID
+	}
+
 	agent := &EnhancedAgent{
-		config:       config.Config,
-		agentHandler: config.AgentHandler,
-		ctx:          ctx,
-		cancel:       cancel,
+		config:               config.Config,
+		agentHandler:         config.AgentHandler,
+		backendURL:           config.BackendURL,
+		agentID:              resolvedAgentID,
+		additionalHeaders:    config.Config.AdditionalHeaders,
+		submitForReviewOnRun: config.SubmitForReview,
+		ctx:                  ctx,
+		cancel:               cancel,
 	}
 
 	// Initialize authentication manager
@@ -171,13 +280,14 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 
 	// Initialize network client
 	networkConfig := &network.Config{
-		WebSocketURL:     config.Config.WebSocketURL,
-		ReconnectEnabled: config.Config.ReconnectEnabled,
-		ReconnectDelay:   config.Config.ReconnectDelay,
-		MaxReconnects:    config.Config.MaxReconnects,
-		MessageTimeout:   config.Config.MessageTimeout,
-		PingInterval:     config.Config.PingInterval,
-		HandshakeTimeout: config.Config.HandshakeTimeout,
+		WebSocketURL:      config.Config.WebSocketURL,
+		ReconnectEnabled:  config.Config.ReconnectEnabled,
+		ReconnectDelay:    config.Config.ReconnectDelay,
+		MaxReconnects:     config.Config.MaxReconnects,
+		MessageTimeout:    config.Config.MessageTimeout,
+		PingInterval:      config.Config.PingInterval,
+		HandshakeTimeout:  config.Config.HandshakeTimeout,
+		AdditionalHeaders: config.Config.AdditionalHeaders,
 	}
 	agent.networkClient = network.NewNetworkClient(networkConfig)
 
@@ -202,6 +312,18 @@ func NewEnhancedAgent(config *EnhancedAgentConfig) (*EnhancedAgent, error) {
 	// Set rate limit if configured
 	if config.Config.RateLimitPerMinute > 0 {
 		agent.taskCoordinator.SetRateLimit(config.Config.RateLimitPerMinute)
+	}
+
+	// Initialize Slack alerter if configured
+	if config.Config.SlackWebhookURL != "" {
+		agent.alerter = alerting.NewSlackAlerter(alerting.SlackConfig{
+			WebhookURL:      config.Config.SlackWebhookURL,
+			AgentName:       config.Config.Name,
+			AgentWallet:     authManager.GetAddress(),
+			ThrottleSeconds: config.Config.SlackAlertThrottleSeconds,
+		})
+		agent.taskCoordinator.SetAlerter(agent.alerter)
+		log.Printf("📢 Slack alerting enabled")
 	}
 
 	// Initialize Redis cache if enabled
@@ -392,8 +514,48 @@ func (a *EnhancedAgent) Stop() error {
 
 // Run runs the agent until interrupted
 func (a *EnhancedAgent) Run() error {
+	// Panic recovery with Slack alerting
+	defer func() {
+		if r := recover(); r != nil {
+			reason := fmt.Sprintf("panic: %v", r)
+			log.Printf("💀 Agent crashed: %s", reason)
+			if a.alerter != nil {
+				a.alerter.SendAgentCrash(reason, 1)
+			}
+		}
+	}()
+
 	if err := a.Start(); err != nil {
 		return err
+	}
+
+	if a.submitForReviewOnRun {
+		// Wait for registration to complete before submitting for review
+		select {
+		case <-a.protocolHandler.Registered():
+			result, err := a.SubmitForReviewDetailed()
+			if err != nil {
+				log.Printf("⚠️ Failed to submit agent for review: %v", err)
+			} else {
+				switch result.Status {
+				case "submitted":
+					log.Printf("✅ Agent submitted for review")
+				case "resubmitted_for_review":
+					log.Printf("✅ Agent re-submitted for review after metadata changes")
+				case "no_changes":
+					log.Printf("ℹ️ Agent already in review with no metadata changes")
+				case "already_public":
+					log.Printf("ℹ️ Agent is already public")
+				default:
+					if result.Message != "" {
+						log.Printf("ℹ️ Submit for review result: %s", result.Message)
+					}
+				}
+			}
+		case <-time.After(30 * time.Second):
+			log.Printf("⚠️ Timed out waiting for registration — skipping submit for review")
+		case <-a.ctx.Done():
+		}
 	}
 
 	// Wait for interrupt signal
@@ -404,6 +566,52 @@ func (a *EnhancedAgent) Run() error {
 	log.Println("📡 Received interrupt signal")
 
 	return a.Stop()
+}
+
+// SubmitForReview submits the agent for public visibility review on the Teneo network.
+// The agent must have been deployed, connected at least once, and be currently online.
+// Review can take up to 72 hours. The agent must stay online during review.
+func (a *EnhancedAgent) SubmitForReviewDetailed() (*SubmitForReviewResult, error) {
+	if a.agentID == "" {
+		return nil, fmt.Errorf("agent ID is required for submit-for-review: set AgentID on EnhancedAgentConfig or Config.AgentID")
+	}
+	tokenID, err := a.getTokenID()
+	if err != nil {
+		return nil, err
+	}
+	return SubmitForReviewDetailed(a.backendURL, a.agentID, a.authManager.GetAddress(), tokenID, a.additionalHeaders)
+}
+
+// SubmitForReview submits the agent for public visibility review on the Teneo network.
+// The agent must have been deployed, connected at least once, and be currently online.
+// Review can take up to 72 hours. The agent must stay online during review.
+func (a *EnhancedAgent) SubmitForReview() error {
+	_, err := a.SubmitForReviewDetailed()
+	return err
+}
+
+// WithdrawPublic withdraws a public agent back to private visibility.
+// Only works on agents that are currently public.
+func (a *EnhancedAgent) WithdrawPublic() error {
+	if a.agentID == "" {
+		return fmt.Errorf("agent ID is required for withdraw-public: set AgentID on EnhancedAgentConfig or Config.AgentID")
+	}
+	tokenID, err := a.getTokenID()
+	if err != nil {
+		return err
+	}
+	return WithdrawPublic(a.backendURL, a.agentID, a.authManager.GetAddress(), tokenID)
+}
+
+func (a *EnhancedAgent) getTokenID() (uint64, error) {
+	if a.config.NFTTokenID == "" {
+		return 0, fmt.Errorf("NFT token ID not set — agent must be deployed first")
+	}
+	var tokenID uint64
+	if _, err := fmt.Sscanf(a.config.NFTTokenID, "%d", &tokenID); err != nil {
+		return 0, fmt.Errorf("invalid NFT token ID %q: %w", a.config.NFTTokenID, err)
+	}
+	return tokenID, nil
 }
 
 // startPeriodicTasks starts periodic maintenance tasks
@@ -549,21 +757,6 @@ func (a *EnhancedAgent) UpdateCapabilities(capabilities []string) {
 	log.Printf("🔄 Updated capabilities: %v", capabilities)
 }
 
-// generateAgentID generates a unique agent ID from the agent name
-func generateAgentID(name string) string {
-	// Convert to lowercase and replace spaces with hyphens
-	agentID := strings.ToLower(name)
-	agentID = strings.ReplaceAll(agentID, " ", "-")
-	// Remove any characters that aren't lowercase letters, numbers, or hyphens
-	result := ""
-	for _, char := range agentID {
-		if (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '-' {
-			result += string(char)
-		}
-	}
-	return result
-}
-
 // getAddressFromPrivateKey derives the Ethereum address from a private key
 func getAddressFromPrivateKey(privateKeyHex string) string {
 	// Import crypto package
@@ -580,4 +773,11 @@ func getAddressFromPrivateKey(privateKeyHex string) string {
 
 	address := crypto.PubkeyToAddress(*publicKeyECDSA)
 	return address.Hex()
+}
+
+// buildCapabilitiesJSON converts config capabilities to JSON.
+// Uses CapabilityDetails (with descriptions) if available, otherwise
+// falls back to Capabilities string slice for backward compatibility.
+func buildCapabilitiesJSON(config *Config) ([]byte, error) {
+	return json.Marshal(config.ResolveCapabilities())
 }

@@ -98,7 +98,7 @@ func (m *BusinessCardManager) MintAgentCard(ctx context.Context, request *types.
 		auth,
 		request.Name,
 		request.Description,
-		request.Capabilities,
+		types.CapabilityNames(request.Capabilities),
 		request.ContactInfo,
 		request.PricingModel,
 		request.InterfaceType,
@@ -193,7 +193,7 @@ func (m *BusinessCardManager) GetAgentByOwner(ctx context.Context, ownerAddress 
 		Metadata: types.AgentMetadata{
 			Name:           metadata.Name,
 			Description:    metadata.Description,
-			Capabilities:   metadata.Capabilities,
+			Capabilities:   types.CapabilitiesFromStrings(metadata.Capabilities),
 			ContactInfo:    metadata.ContactInfo,
 			PricingModel:   metadata.PricingModel,
 			InterfaceType:  metadata.InterfaceType,

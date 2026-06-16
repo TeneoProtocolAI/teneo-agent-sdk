@@ -1,0 +1,199 @@
+{
+  "name": "Monitoring Agent",
+  "agent_id": "monitoring-agent",
+  "short_description": "Schedule monitors, check URLs, and get alerts with rich parameter types.",
+  "description": "Monitoring agent that demonstrates all parameter types and command variants. Schedule health checks, monitor URLs, and configure alert thresholds.",
+  "image": "",
+  "agent_type": "command",
+  "capabilities": [
+    {
+      "name": "monitoring/health_check",
+      "description": "Checks health of a URL endpoint and returns status, latency, and response code."
+    },
+    {
+      "name": "monitoring/schedule",
+      "description": "Schedules recurring health checks at configurable intervals."
+    },
+    {
+      "name": "monitoring/alerts",
+      "description": "Configures alert thresholds and notification preferences."
+    }
+  ],
+  "commands": [
+    {
+      "trigger": "check",
+      "description": "Performs a one-off health check on a URL. Demonstrates url and boolean parameter types.",
+      "argument": "<target> [verbose]",
+      "parameters": [
+        {
+          "name": "target",
+          "type": "url",
+          "required": true,
+          "description": "URL to check",
+          "minLength": 8
+        },
+        {
+          "name": "verbose",
+          "type": "boolean",
+          "required": false,
+          "description": "Include response headers and body preview"
+        }
+      ],
+      "strictArg": false,
+      "minArgs": 1,
+      "maxArgs": 2,
+      "pricePerUnit": 0.001,
+      "priceType": "task-transaction",
+      "taskUnit": "per-query"
+    },
+    {
+      "trigger": "schedule",
+      "description": "Schedules a recurring monitor. Demonstrates interval, datetime, and id parameter types.",
+      "argument": "<target> <interval> [start_after] [monitor_id]",
+      "parameters": [
+        {
+          "name": "target",
+          "type": "url",
+          "required": true,
+          "description": "URL to monitor"
+        },
+        {
+          "name": "interval",
+          "type": "interval",
+          "required": true,
+          "description": "Check frequency",
+          "minDuration": "30s",
+          "maxDuration": "7d"
+        },
+        {
+          "name": "start_after",
+          "type": "datetime",
+          "required": false,
+          "description": "Delay start until this time (ISO 8601)",
+          "includeTime": true
+        },
+        {
+          "name": "monitor_id",
+          "type": "id",
+          "required": false,
+          "description": "Optional monitor ID to update an existing schedule"
+        }
+      ],
+      "strictArg": false,
+      "minArgs": 2,
+      "maxArgs": 4,
+      "pricePerUnit": 0.002,
+      "priceType": "task-transaction",
+      "taskUnit": "per-query"
+    },
+    {
+      "trigger": "alert",
+      "description": "Configures alert rules. Uses variants for different alert modes.",
+      "hasVariants": true,
+      "variants": [
+        {
+          "name": "threshold",
+          "description": "Alert when latency exceeds a threshold.",
+          "argument": "<target> <max_latency_ms>",
+          "parameters": [
+            {
+              "name": "target",
+              "type": "url",
+              "required": true,
+              "description": "Monitored URL"
+            },
+            {
+              "name": "max_latency_ms",
+              "type": "number",
+              "required": true,
+              "description": "Maximum acceptable latency in milliseconds",
+              "minValue": "50"
+            }
+          ],
+          "strictArg": true,
+          "minArgs": 2,
+          "maxArgs": 2,
+          "pricePerUnit": 0.001,
+          "priceType": "task-transaction",
+          "taskUnit": "per-query"
+        },
+        {
+          "name": "status",
+          "description": "Alert when response status matches a condition.",
+          "argument": "<target> <condition>",
+          "parameters": [
+            {
+              "name": "target",
+              "type": "url",
+              "required": true,
+              "description": "Monitored URL"
+            },
+            {
+              "name": "condition",
+              "type": "enum",
+              "required": true,
+              "description": "Status condition to alert on",
+              "options": ["5xx", "4xx", "non-200", "any-error"]
+            }
+          ],
+          "strictArg": true,
+          "minArgs": 2,
+          "maxArgs": 2,
+          "pricePerUnit": 0.001,
+          "priceType": "task-transaction",
+          "taskUnit": "per-query"
+        }
+      ]
+    },
+    {
+      "trigger": "bulk_check",
+      "description": "Check multiple URLs at once. Demonstrates variadic parameters with per-item billing.",
+      "argument": "<urls>...",
+      "parameters": [
+        {
+          "name": "urls",
+          "type": "url",
+          "required": true,
+          "description": "URLs to check (one or more)",
+          "variadic": true,
+          "minOccurrences": 1,
+          "maxOccurrences": 10,
+          "isBillingCount": true
+        }
+      ],
+      "strictArg": true,
+      "minArgs": 1,
+      "maxArgs": 10,
+      "pricePerUnit": 0.001,
+      "priceType": "task-transaction",
+      "taskUnit": "per-item"
+    },
+    {
+      "trigger": "notify",
+      "description": "Send a test notification to a social handle.",
+      "argument": "<handle>",
+      "parameters": [
+        {
+          "name": "handle",
+          "type": "username",
+          "required": true,
+          "description": "Social media handle to notify",
+          "minLength": 2,
+          "maxLength": 30
+        }
+      ],
+      "strictArg": true,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "pricePerUnit": 0,
+      "priceType": "task-transaction",
+      "taskUnit": "per-query"
+    }
+  ],
+  "nlp_fallback": false,
+  "categories": [
+    "Developer Tools",
+    "Automation"
+  ],
+  "metadata_version": "2.4.0"
+}

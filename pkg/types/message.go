@@ -71,7 +71,71 @@ const (
 	MessageTypeAgents           = "agents"
 	MessageTypeRooms            = "rooms"
 	MessageTypeNick             = "nick"
+
+	// Agent-initiated message types
+	MessageTypeAgentError             = "agent_error"
+	MessageTypeTriggerWalletTx        = "trigger_wallet_tx"
+	MessageTypeTxResult               = "tx_result"
+	MessageTypeTriggerWalletSignature = "trigger_wallet_signature"
+	MessageTypeSignatureResult        = "signature_result"
 )
+
+// TxStatus is the lifecycle state of a wallet transaction requested via TriggerWalletTx.
+// Kept as a named string type so agents can do typed comparisons and so IsTerminal()
+// gives one place to check "flow is done".
+type TxStatus string
+
+const (
+	TxStatusBroadcasted TxStatus = "broadcasted"
+	TxStatusConfirmed   TxStatus = "confirmed"
+	TxStatusRejected    TxStatus = "rejected"
+	TxStatusFailed      TxStatus = "failed"
+)
+
+// IsTerminal reports whether the status represents a final state where no further
+// updates will arrive. "broadcasted" is not terminal — a "confirmed" follows.
+func (s TxStatus) IsTerminal() bool {
+	switch s {
+	case TxStatusConfirmed, TxStatusRejected, TxStatusFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+// SignMethod is the off-chain signing method the wallet should use.
+type SignMethod string
+
+const (
+	// SignMethodTypedDataV4 is EIP-712 typed structured data signing.
+	// TypedData field must contain a valid EIP-712 payload (types, domain, primaryType, message).
+	SignMethodTypedDataV4 SignMethod = "eth_signTypedData_v4"
+	// SignMethodPersonalSign is the legacy personal_sign over a raw UTF-8 string.
+	// Use the Message field; TypedData is ignored.
+	SignMethodPersonalSign SignMethod = "personal_sign"
+)
+
+// SignatureStatus is the lifecycle state of an off-chain signature requested via
+// TriggerWalletSignature. Signing is synchronous in the wallet UI so there is no
+// "broadcasted" equivalent — the user either signs, rejects, or fails.
+type SignatureStatus string
+
+const (
+	SignatureStatusSigned   SignatureStatus = "signed"
+	SignatureStatusRejected SignatureStatus = "rejected"
+	SignatureStatusFailed   SignatureStatus = "failed"
+)
+
+// IsTerminal reports whether the status is final. All signature statuses are terminal;
+// the method exists for symmetry with TxStatus so generic pipeline code can treat them uniformly.
+func (s SignatureStatus) IsTerminal() bool {
+	switch s {
+	case SignatureStatusSigned, SignatureStatusRejected, SignatureStatusFailed:
+		return true
+	default:
+		return false
+	}
+}
 
 // AuthMessage represents an authentication message
 type AuthMessage struct {
@@ -83,6 +147,7 @@ type AuthMessage struct {
 	UserType   string `json:"userType"`
 	AgentName  string `json:"agentName,omitempty"`
 	NFTTokenID string `json:"nft_token_id,omitempty"`
+	SDKVersion string `json:"sdk_version,omitempty"`
 	Timestamp  int64  `json:"timestamp"`
 }
 
@@ -167,18 +232,18 @@ type TaskResultMessage struct {
 
 // AgentInfo represents basic agent information
 type AgentInfo struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	Capabilities []string `json:"capabilities"`
-	Room         string   `json:"room"`
-	Status       string   `json:"status"`
+	ID           string       `json:"id"`
+	Name         string       `json:"name"`
+	Capabilities []Capability `json:"capabilities"`
+	Room         string       `json:"room"`
+	Status       string       `json:"status"`
 }
 
 // AgentSelectedMessage represents an agent selection message
 type AgentSelectedMessage struct {
-	AgentID      string   `json:"agent_id"`
-	AgentName    string   `json:"agent_name"`
-	Capabilities []string `json:"capabilities"`
+	AgentID      string       `json:"agent_id"`
+	AgentName    string       `json:"agent_name"`
+	Capabilities []Capability `json:"capabilities"`
 	Reasoning    string   `json:"reasoning"`
 	UserRequest  string   `json:"user_request"`
 }
@@ -212,3 +277,75 @@ const (
 	EventTypeSystemStatus  = "system_status"
 	EventTypeNetworkUpdate = "network_update"
 )
+
+// TxRequest represents a transaction for the user to sign
+type TxRequest struct {
+	To      string `json:"to"`
+	Value   string `json:"value,omitempty"`
+	Data    string `json:"data,omitempty"`
+	ChainId int    `json:"chainId"`
+}
+
+// AgentErrorData is the payload for agent_error messages
+type AgentErrorData struct {
+	TaskID    string                 `json:"task_id"`
+	ErrorCode string                 `json:"error_code,omitempty"`
+	Details   map[string]interface{} `json:"details,omitempty"`
+}
+
+// TriggerWalletTxData is the payload for trigger_wallet_tx messages
+type TriggerWalletTxData struct {
+	TaskID      string    `json:"task_id"`
+	Tx          TxRequest `json:"tx"`
+	Description string    `json:"description"`
+	Optional    bool      `json:"optional"`
+}
+
+// TxResultData is the payload received when user responds to a trigger_wallet_tx request.
+// Status is one of: "broadcasted" (tx sent, hash available), "confirmed" (on-chain receipt),
+// "rejected" (user declined), or "failed" (error). Use TxStatus* constants.
+type TxResultData struct {
+	TaskID string   `json:"task_id"`
+	TxHash string   `json:"tx_hash,omitempty"`
+	Status TxStatus `json:"status"`
+	Error  string   `json:"error,omitempty"`
+}
+
+// TriggerWalletSignatureData is the payload for trigger_wallet_signature messages.
+// The wallet MUST render the TypedData content itself — Description is advisory only
+// and not a substitute for showing the user what they're actually signing.
+type TriggerWalletSignatureData struct {
+	TaskID      string           `json:"task_id"`
+	Signature   SignatureRequest `json:"signature"`
+	Description string           `json:"description"`
+}
+
+// SignatureRequest describes an off-chain signature the agent wants from the user's wallet.
+// For SignMethodTypedDataV4: populate TypedData with a valid EIP-712 payload.
+// For SignMethodPersonalSign: populate Message with the raw string to sign.
+//
+// Note: chainId is intentionally not a top-level field. For EIP-712 it belongs inside
+// TypedData.domain.chainId (authoritative); personal_sign is chain-agnostic. Having two
+// sources of truth for chain caused bugs in prior iterations.
+type SignatureRequest struct {
+	Method    SignMethod      `json:"method"`
+	TypedData json.RawMessage `json:"typed_data,omitempty"`
+	Message   string          `json:"message,omitempty"`
+}
+
+// SignatureResultData is the payload received when the user responds to a
+// trigger_wallet_signature request. Signature is populated only when Status == signed.
+type SignatureResultData struct {
+	TaskID    string          `json:"task_id"`
+	Signature string          `json:"signature,omitempty"`
+	Status    SignatureStatus `json:"status"`
+	Error     string          `json:"error,omitempty"`
+}
+
+// StreamMeta contains streaming metadata for chunked task responses.
+// When present in a task_response's Data field, it indicates the response
+// is part of a streaming sequence rather than a single atomic response.
+type StreamMeta struct {
+	Seq   int  `json:"seq"`
+	Final bool `json:"final"`
+}

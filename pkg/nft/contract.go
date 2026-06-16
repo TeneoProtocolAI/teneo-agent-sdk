@@ -127,9 +127,8 @@ func ParseABI() (abi.ABI, error) {
 	return abi.JSON(strings.NewReader(abiJSON))
 }
 
-// DefaultMintPrice returns the default mint price (0.01 ETH)
+// DefaultMintPrice returns the default mint price (2 PEAQ)
 func DefaultMintPrice() *big.Int {
-	// 0.01 ETH = 10000000000000000 wei
-	mintPrice, _ := new(big.Int).SetString("10000000000000000", 10)
+	mintPrice, _ := new(big.Int).SetString("2000000000000000000", 10)
 	return mintPrice
 }

@@ -1,0 +1,18 @@
+{
+  "agent_id": "interior-architecture-advisor",
+  "agent_name": "Interior Architecture Advisor",
+  "wallet_address": "0x10aaF658FA638a1A153dD3730236088950Ab7572",
+  "token_id": 102,
+  "tx_hash": "0xacfb484f57d645552ad962dc100d063b0858f9d1d84521cf2b83d9cc8787781f",
+  "contract_address": "0x403D22629EA58CfA5117b9C72953538BCD6D47b5",
+  "rpc_url": "https://peaq.api.onfinality.io/public",
+  "config_hash": "ca983aad7bd0c4cd9062cd5c8b202e961cfa02c07b8e4ceaeff2b2367af3bbe9",
+  "status": "confirmed",
+  "session_token": "ef61a3d6cb7c881509243904dd8aba51367a8f548b95c00d9ba2c7c0b0c3f1ea2d2d938a06cb031d88b927eec08d82c2289eaa1a7111440313304d21623a09c1",
+  "session_expiry": 1771075660,
+  "nonce": 4,
+  "chain_id": "3338",
+  "signature": "0x677c6cf07f88fb0b2739639de5696062b65984392364c8e6a0df9fbe86a281c41f0a3a810d9c905da113529f317a4889dae537c1d1d4ca9960a28ac2d4e0b3d81c",
+  "updated_at": "2026-02-13T13:27:51.272611205Z",
+  "created_at": "2026-02-13T13:27:41.064347559Z"
+}
